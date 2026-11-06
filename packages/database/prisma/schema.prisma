@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  operator
+  viewer
+}
+
+enum SourceKind {
+  physical
+  simulator
+}
+
+model User {
+  id               String                 @id @default(uuid()) @db.Uuid
+  email            String                 @unique
+  passwordHash     String                 @map("password_hash")
+  role             Role                   @default(viewer)
+  active           Boolean                @default(true)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions         Session[]
+  acknowledgements AlertAcknowledgement[]
+  configs          DeviceConfig[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id])
+  pushSubscription WebPushSubscription?
+
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Device {
+  id                   String                @id @default(uuid()) @db.Uuid
+  name                 String
+  sourceKind           SourceKind            @map("source_kind")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSeenAt           DateTime?             @map("last_seen_at") @db.Timestamptz(3)
+  latestId             BigInt?               @map("latest_id")
+  bootId               String?               @map("boot_id") @db.Uuid
+  bootCounter          BigInt?               @map("boot_counter")
+  latestSeq            BigInt?               @map("latest_seq")
+  location             String                @default("")
+  description          String                @default("")
+  archivedAt           DateTime?             @map("archived_at") @db.Timestamptz(3)
+  reportingIntervalMs  Int                   @default(5000) @map("reporting_interval_ms")
+  desiredConfigVersion Int                   @default(1) @map("desired_config_version")
+  appliedConfigVersion Int?                  @map("applied_config_version")
+  connectivity         String                @default("never_seen")
+  readings             SensorReading[]
+  credentials          DeviceCredential[]
+  configs              DeviceConfig[]
+  configAcks           DeviceConfigAck[]
+  incidents            AlertIncident[]
+  alertStates          AlertState[]
+  events               AlertEvent[]
+  statuses             DeviceStatusHistory[]
+  rollups              SensorRollup[]
+
+  @@map("devices")
+}
+
+model DeviceCredential {
+  id            String    @id @default(uuid()) @db.Uuid
+  deviceId      String    @map("device_id") @db.Uuid
+  keyId         String    @unique @map("key_id")
+  secretHash    String    @map("secret_hash")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt    DateTime? @map("last_used_at") @db.Timestamptz(3)
+  label         String    @default("")
+  replacesKeyId String?   @map("replaces_key_id")
+  device        Device    @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId])
+  @@map("device_credentials")
+}
+
+model SensorReading {
+  id           BigInt    @id @default(autoincrement())
+  deviceId     String    @map("device_id") @db.Uuid
+  bootId       String    @map("boot_id") @db.Uuid
+  bootCounter  BigInt    @map("boot_counter")
+  seq          BigInt
+  sampledAt    DateTime? @map("sampled_at") @db.Timestamptz(3)
+  receivedAt   DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  temperatureC Float?    @map("temperature_c") @db.Real
+  humidityPct  Float?    @map("humidity_pct") @db.Real
+  mq2Adc       Int?      @map("mq2_adc")
+  mq7Adc       Int?      @map("mq7_adc")
+  flame        Boolean?
+  payload      Json
+  payloadHash  String    @map("payload_hash")
+  device       Device    @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, bootId, seq])
+  @@index([deviceId, sampledAt(sort: Desc), id(sort: Desc)])
+  @@index([deviceId, receivedAt(sort: Desc), id(sort: Desc)])
+  @@index([receivedAt, id], map: "sensor_readings_retention_idx")
+  @@map("sensor_readings")
+}
+
+model AlertIncident {
+  id              String                 @id @default(uuid()) @db.Uuid
+  ordinal         BigInt                 @unique @default(autoincrement())
+  deviceId        String                 @map("device_id") @db.Uuid
+  externalId      String?                @map("external_id") @db.Uuid
+  condition       String
+  severity        String
+  origin          String
+  status          String                 @default("active")
+  startedAt       DateTime?              @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime?              @map("ended_at") @db.Timestamptz(3)
+  firstObservedAt DateTime               @default(now()) @map("first_observed_at") @db.Timestamptz(3)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  device          Device                 @relation(fields: [deviceId], references: [id])
+  events          AlertEvent[]
+  acknowledgement AlertAcknowledgement?
+  states          AlertState[]
+  notifications   TelegramNotification[]
+  pushDeliveries WebPushDelivery[]
+
+  @@unique([deviceId, externalId])
+  @@index([deviceId, firstObservedAt(sort: Desc)])
+  @@index([status, ordinal(sort: Desc)])
+  @@map("alert_incidents")
+}
+
+model AlertEvent {
+  id            BigInt        @id @default(autoincrement())
+  deviceId      String        @map("device_id") @db.Uuid
+  incidentId    String        @map("incident_id") @db.Uuid
+  sourceEventId String        @map("source_event_id")
+  transition    String
+  occurredAt    DateTime?     @map("occurred_at") @db.Timestamptz(3)
+  receivedAt    DateTime      @default(now()) @map("received_at") @db.Timestamptz(3)
+  bootId        String        @map("boot_id") @db.Uuid
+  bootCounter   BigInt        @map("boot_counter")
+  seq           BigInt
+  payloadHash   String        @map("payload_hash")
+  payload       Json
+  device        Device        @relation(fields: [deviceId], references: [id])
+  incident      AlertIncident @relation(fields: [incidentId], references: [id])
+
+  @@unique([deviceId, sourceEventId])
+  @@index([incidentId, id])
+  @@index([deviceId, receivedAt(sort: Desc)])
+  @@map("alert_events")
+}
+
+model AlertState {
+  id          String         @id @default(uuid()) @db.Uuid
+  deviceId    String         @map("device_id") @db.Uuid
+  condition   String
+  state       String
+  incidentId  String?        @map("incident_id") @db.Uuid
+  bootId      String         @map("boot_id") @db.Uuid
+  bootCounter BigInt         @map("boot_counter")
+  seq         BigInt
+  updatedAt   DateTime       @map("updated_at") @db.Timestamptz(3)
+  device      Device         @relation(fields: [deviceId], references: [id])
+  incident    AlertIncident? @relation(fields: [incidentId], references: [id])
+
+  @@unique([deviceId, condition])
+  @@map("alert_states")
+}
+
+model AlertAcknowledgement {
+  id             String        @id @default(uuid()) @db.Uuid
+  incidentId     String        @unique @map("incident_id") @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  acknowledgedAt DateTime      @default(now()) @map("acknowledged_at") @db.Timestamptz(3)
+  note           String        @default("")
+  incident       AlertIncident @relation(fields: [incidentId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+
+  @@map("alert_acknowledgements")
+}
+
+model DeviceConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  deviceId    String   @map("device_id") @db.Uuid
+  version     Int
+  config      Json
+  contentHash String   @map("content_hash")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdBy   String?  @map("created_by") @db.Uuid
+  device      Device   @relation(fields: [deviceId], references: [id])
+  author      User?    @relation(fields: [createdBy], references: [id])
+
+  @@unique([deviceId, version])
+  @@map("device_configs")
+}
+
+model DeviceConfigAck {
+  id         String   @id @default(uuid()) @db.Uuid
+  deviceId   String   @map("device_id") @db.Uuid
+  version    Int
+  status     String
+  reason     String   @default("")
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+  device     Device   @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, version, status])
+  @@map("device_config_acks")
+}
+
+model DeviceStatusHistory {
+  id             BigInt   @id @default(autoincrement())
+  deviceId       String   @map("device_id") @db.Uuid
+  previousStatus String   @map("previous_status")
+  newStatus      String   @map("new_status")
+  effectiveAt    DateTime @map("effective_at") @db.Timestamptz(3)
+  detectedAt     DateTime @default(now()) @map("detected_at") @db.Timestamptz(3)
+  reason         String
+  device         Device   @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId, id(sort: Desc)])
+  @@map("device_status_history")
+}
+
+model AuditLog {
+  id           BigInt   @id @default(autoincrement())
+  userId       String?  @map("user_id") @db.Uuid
+  action       String
+  deviceId     String?  @map("device_id") @db.Uuid
+  resourceType String   @default("device") @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  metadata     Json
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user         User?    @relation(fields: [userId], references: [id])
+
+  @@index([deviceId, id(sort: Desc)])
+  @@index([resourceType, resourceId, id(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model SensorRollup {
+  deviceId    String   @map("device_id") @db.Uuid
+  resolution  String
+  timeBasis   String   @map("time_basis")
+  metric      String
+  adcBits     Int      @default(0) @map("adc_bits")
+  bucketStart DateTime @map("bucket_start") @db.Timestamptz(3)
+  totalCount  Int      @map("total_count")
+  validCount  Int      @map("valid_count")
+  valueSum    Float    @map("value_sum")
+  minimum     Float?
+  maximum     Float?
+  device      Device   @relation(fields: [deviceId], references: [id])
+
+  @@id([deviceId, resolution, timeBasis, metric, adcBits, bucketStart])
+  @@map("sensor_rollups")
+}
+
+model TelegramNotification {
+  id            String        @id @default(uuid()) @db.Uuid
+  incidentId    String        @map("incident_id") @db.Uuid
+  severity      String
+  status        String        @default("pending")
+  attempts      Int           @default(0)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  nextAttemptAt DateTime      @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  expiresAt     DateTime      @map("expires_at") @db.Timestamptz(3)
+  leaseUntil    DateTime?     @map("lease_until") @db.Timestamptz(3)
+  leaseToken    String?       @map("lease_token") @db.Uuid
+  sentAt        DateTime?     @map("sent_at") @db.Timestamptz(3)
+  lastErrorCode String?       @map("last_error_code")
+  incident      AlertIncident @relation(fields: [incidentId], references: [id])
+
+  @@unique([incidentId, severity])
+  @@index([status, nextAttemptAt])
+  @@map("telegram_notifications")
+}
+
+model WebPushSubscription {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @unique @map("session_id") @db.Uuid
+  endpointHash String @unique @map("endpoint_hash")
+  endpoint String
+  p256dh String
+  auth String
+  vapidPublicKey String @map("vapid_public_key")
+  includeSimulators Boolean @default(false) @map("include_simulators")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  deliveries WebPushDelivery[]
+
+  @@map("web_push_subscriptions")
+}
+
+model WebPushDelivery {
+  id String @id @default(uuid()) @db.Uuid
+  incidentId String @map("incident_id") @db.Uuid
+  subscriptionId String @map("subscription_id") @db.Uuid
+  severity String
+  status String @default("pending")
+  attempts Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  leaseToken String? @map("lease_token") @db.Uuid
+  sentAt DateTime? @map("sent_at") @db.Timestamptz(3)
+  lastErrorCode String? @map("last_error_code")
+  incident AlertIncident @relation(fields: [incidentId], references: [id])
+  subscription WebPushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([incidentId, severity, subscriptionId])
+  @@index([status, nextAttemptAt])
+  @@map("web_push_deliveries")
+}

@@ -1,0 +1,5 @@
+{
+  "name": "@iot/device-simulator",
+  "private": true,
+  "type": "module"
+}
