@@ -8,11 +8,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://your-backend.up.railway.app/api/:path*"
+      "destination": "https://iot-air-monitor-production.up.railway.app/api/:path*"
     },
     {
       "source": "/socket.io/:path*",
-      "destination": "https://your-backend.up.railway.app/socket.io/:path*"
+      "destination": "https://iot-air-monitor-production.up.railway.app/socket.io/:path*"
     },
     {
       "source": "/(.*)",
