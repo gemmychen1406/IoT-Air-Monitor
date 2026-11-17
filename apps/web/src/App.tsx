@@ -16,6 +16,7 @@ import {
   ChartNoAxesCombined,
   Users,
   ScrollText,
+  GitCompareArrows,
 } from 'lucide-react';
 import type { DeviceView } from '@iot/contracts';
 import { api, HttpError } from './lib/api.js';
@@ -33,12 +34,16 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage.js'));
 const UsersPage = lazy(() => import('./pages/UsersPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
+const ComparisonReportingPage = lazy(
+  () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
+);
 const navigation = [
   { path: '/app/overview', icon: LayoutDashboard, label: 'Tổng quan' },
   { path: '/app/monitoring', icon: Radio, label: 'Giám sát trực tiếp' },
   { path: '/app/alerts', icon: Bell, label: 'Cảnh báo & sự cố' },
   { path: '/app/analytics', icon: ChartNoAxesCombined, label: 'Analytics & lịch sử' },
   { path: '/app/devices', icon: Cpu, label: 'Thiết bị' },
+  { path: '/app/comparison-reporting', icon: GitCompareArrows, label: 'So sánh & Báo cáo' },
   { path: '/app/settings', icon: Settings, label: 'Cài đặt' },
   { path: '/app/extensions', icon: Activity, label: 'Tiện ích mở rộng' },
 ];
@@ -325,6 +330,10 @@ export function App() {
               <Route path="/app/alerts" element={<AlertsPage devices={devices} />} />
               <Route path="/app/alerts/:id" element={<IncidentPage user={session.user} />} />
               <Route path="/app/analytics" element={<AnalyticsPage devices={devices} />} />
+              <Route
+                path="/app/comparison-reporting"
+                element={<ComparisonReportingPage devices={devices} user={session.user} />}
+              />
               <Route path="/app/extensions" element={<ExtensionsHub />} />
               <Route path="/app/users" element={<UsersPage user={session.user} />} />
               <Route path="/app/audit" element={<AuditPage user={session.user} />} />

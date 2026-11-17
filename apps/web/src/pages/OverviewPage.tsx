@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import type { DeviceView } from '@iot/contracts';
 import { SensorPanel } from '../components/SensorPanel.js';
 import { dateText } from '../components/FeatureUI.js';
+import { SensorMeaningGuide } from '../components/SensorMeaningGuide.js';
 
 export default function OverviewPage({
   devices,
@@ -88,7 +89,10 @@ export default function OverviewPage({
         ) : null}
       </div>
       {selected ? (
-        <SensorPanel device={selected} />
+        <>
+          <SensorPanel device={selected} />
+          <SensorMeaningGuide device={selected} />
+        </>
       ) : (
         <div className="panel empty">
           <Cpu size={34} />
