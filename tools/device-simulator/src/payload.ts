@@ -1,4 +1,5 @@
-import type { Telemetry } from '@iot/contracts';
+import type { Telemetry } from "@iot/contracts";
+import { scenarioState, type Scenario } from "./scenarios.js";
 
 export function buildPayload(options: {
   deviceId: string;
@@ -7,22 +8,43 @@ export function buildPayload(options: {
   seq: string;
   uptime: number;
   now: Date;
-  scenario?: 'normal' | 'danger';
+  scenario?: Scenario;
+  scenarioSample?: number;
+  durationSamples?: number;
+  amplitude?: number;
+  seed?: number;
 }): Telemetry {
-  // Scripted demonstration only: never infer hazard or PPM from ADC values.
-  // Ten-sample cycle: 1–2 normal, 3–6 active, 7–10 recovered.
-  const phase = Number((BigInt(options.seq) - 1n) % 10n) + 1;
-  const dangerScenario = options.scenario === 'danger';
-  const active = dangerScenario && phase >= 3 && phase <= 6;
-  const wave = Math.sin(Number(BigInt(options.seq) % 100n) / 10);
+  const scenario = options.scenario ?? "normal";
+  // Preserve the original public helper behavior used by integration tests:
+  // danger samples 3-6 are active and sample 7 starts recovery. The CLI passes
+  // an explicit scenarioSample/durationSamples and therefore uses all five new phases.
+  const legacyDangerPhase = Number((BigInt(options.seq) - 1n) % 10n) + 1;
+  const legacyDangerSample =
+    legacyDangerPhase <= 2 ? 0 : legacyDangerPhase <= 6 ? 5 : 9;
+  const state = scenarioState({
+    scenario,
+    sample:
+      options.scenarioSample ??
+      (scenario === "danger"
+        ? legacyDangerSample
+        : Number(BigInt(options.seq) - 1n)),
+    durationSamples:
+      options.durationSamples ?? (scenario === "danger" ? 10 : undefined),
+    amplitude: options.amplitude,
+    seed: options.seed,
+  });
   const gas = (adc: number) => ({
     adc_raw: adc,
     adc_bits: 12,
     adc_pin_mv: Math.round(adc * 0.6),
-    quality: 'uncalibrated' as const,
+    quality: "uncalibrated" as const,
     age_ms: 0,
     concentration_ppm: null,
   });
+  const gasActive =
+    ["gas", "fire", "combined", "danger"].includes(scenario) && state.alert;
+  const coActive =
+    ["co", "combined", "danger"].includes(scenario) && state.alert;
   return {
     schema_version: 1,
     device_id: options.deviceId,
@@ -38,25 +60,35 @@ export function buildPayload(options: {
         seq: options.seq,
         sampled_at: options.now.toISOString(),
         uptime_ms: String(options.uptime),
-        time_quality: 'synced',
-        firmware_version: 'simulator-0.1.0',
+        time_quality: "synced",
+        firmware_version: "simulator-0.1.0",
         config_version: 1,
         sensors: {
           dht11: {
-            temperature_c: Math.round((27 + wave) * 10) / 10,
-            humidity_pct: Math.round(65 + 3 * wave),
-            quality: 'valid',
+            temperature_c: state.temperatureC,
+            humidity_pct: state.humidityPct,
+            quality: "valid",
             age_ms: 0,
           },
-          mq2: gas(Math.round(1200 + 100 * wave)),
-          mq7: { ...gas(Math.round(900 + 80 * wave)), heater_control: 'unverified' },
-          flame: { detected: active, quality: 'valid', age_ms: 0 },
+          mq2: gas(state.mq2Adc),
+          mq7: { ...gas(state.mq7Adc), heater_control: "unverified" },
+          flame: { detected: state.flame, quality: "valid", age_ms: 0 },
         },
         alert_snapshot: {
-          gas: dangerScenario ? (active ? 'active' : 'normal') : 'not_configured',
-          co: dangerScenario ? (active ? 'active' : 'normal') : 'not_configured',
-          flame: active ? 'active' : 'normal',
-          buzzer_commanded_on: active,
+          gas:
+            scenario === "normal"
+              ? "not_configured"
+              : gasActive
+                ? "active"
+                : "normal",
+          co:
+            scenario === "normal"
+              ? "not_configured"
+              : coActive
+                ? "active"
+                : "normal",
+          flame: state.flame ? "active" : "normal",
+          buzzer_commanded_on: state.flame || gasActive || coActive,
         },
       },
     ],
