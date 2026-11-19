@@ -34,5 +34,5 @@ export type ReportData = {
   range: RangeInput;
   analytics: Partial<Record<Metric, AnalyticsView>>;
   incidents: IncidentView[];
-  incidentsMayBeTruncated: boolean;
+  incidentsComplete: boolean;
 };

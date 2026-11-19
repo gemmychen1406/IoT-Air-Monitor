@@ -1,5 +1,9 @@
 import type { AnalyticsView, Stats } from "@iot/contracts";
 import type { Bucket, Metric, RangeInput } from "./types.js";
+import {
+  formatSensorValue,
+  type DisplayMetric,
+} from "../../lib/sensor-display.js";
 
 const BUCKET_MS: Record<Bucket, number> = {
   minute: 60_000,
@@ -145,9 +149,19 @@ export function friendlyConclusion(
 }
 
 export function formatValue(value: number | null, unit = "") {
-  return value === null
-    ? "Chưa có dữ liệu"
-    : `${value.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} ${unit}`.trim();
+  if (value === null) return "Chưa có dữ liệu";
+  const metric =
+    unit === "°C"
+      ? "temperature_c"
+      : unit === "%RH" || unit === "%"
+        ? "humidity_pct"
+        : unit === "ADC"
+          ? "mq2_adc"
+          : null;
+  const formatted = metric
+    ? formatSensorValue(metric as DisplayMetric, value)
+    : value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  return `${formatted} ${unit}`.trim();
 }
 
 export function formatTime(value: string) {

@@ -1,23 +1,33 @@
-import type { DeviceView } from '@iot/contracts';
-import { Thermometer, Droplets, Wind, Flame, Activity } from 'lucide-react';
-import { sensorFreshness } from '../lib/freshness.js';
-import { useEffect, useState } from 'react';
+import type { DeviceView } from "@iot/contracts";
+import { Thermometer, Droplets, Wind, Flame, Activity } from "lucide-react";
+import { sensorFreshness } from "../lib/freshness.js";
+import { useEffect, useState } from "react";
+import {
+  formatSensorValue,
+  type DisplayMetric,
+} from "../lib/sensor-display.js";
 
 const qualityText = {
-  valid: 'Tín hiệu hợp lệ',
-  invalid: 'Lỗi cảm biến',
-  warming_up: 'Đang làm nóng',
-  uncalibrated: 'Chưa hiệu chuẩn',
-  heating: 'Đang gia nhiệt',
+  valid: "Tín hiệu hợp lệ",
+  invalid: "Lỗi cảm biến",
+  warming_up: "Đang làm nóng",
+  uncalibrated: "Chưa hiệu chuẩn",
+  heating: "Đang gia nhiệt",
 };
 export const alertText = {
-  normal: 'Không kích hoạt',
-  active: 'Đang cảnh báo',
-  unknown: 'Chưa xác định',
-  not_configured: 'Chưa cấu hình đánh giá',
+  normal: "Không kích hoạt",
+  active: "Đang cảnh báo",
+  unknown: "Chưa xác định",
+  not_configured: "Chưa cấu hình đánh giá",
 };
 
-export function SensorPanel({ device, now }: { device: DeviceView; now?: number }) {
+export function SensorPanel({
+  device,
+  now,
+}: {
+  device: DeviceView;
+  now?: number;
+}) {
   const [clock, setClock] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 5000);
@@ -26,7 +36,7 @@ export function SensorPanel({ device, now }: { device: DeviceView; now?: number 
   const reading = device.latest;
   return (
     <section aria-label={`Cảm biến ${device.name}`}>
-      {device.source_kind === 'simulator' ? (
+      {device.source_kind === "simulator" ? (
         <div className="notice simulation">
           <Activity size={16} /> Dữ liệu mô phỏng — không phải số đo phần cứng
         </div>
@@ -35,66 +45,94 @@ export function SensorPanel({ device, now }: { device: DeviceView; now?: number 
         <div className="empty">
           <Activity size={30} />
           <h3>Chưa có dữ liệu cảm biến</h3>
-          <p>Đăng ký credential và kết nối thiết bị hoặc simulator để bắt đầu.</p>
+          <p>
+            Đăng ký credential và kết nối thiết bị hoặc simulator để bắt đầu.
+          </p>
         </div>
       ) : (
         <>
           <div className="sensor-grid">
             {[
               {
-                title: 'Nhiệt độ',
+                title: "Nhiệt độ",
+                metric: "temperature_c" as const,
                 value: reading.payload.sensors.dht11.temperature_c,
-                unit: '°C',
+                unit: "°C",
                 sensor: reading.payload.sensors.dht11,
                 icon: Thermometer,
-                color: 'orange',
+                color: "orange",
               },
               {
-                title: 'Độ ẩm',
+                title: "Độ ẩm",
+                metric: "humidity_pct" as const,
                 value: reading.payload.sensors.dht11.humidity_pct,
-                unit: '%RH',
+                unit: "%RH",
                 sensor: reading.payload.sensors.dht11,
                 icon: Droplets,
-                color: 'blue',
+                color: "blue",
               },
               {
-                title: 'MQ-2',
+                title: "MQ-2",
+                metric: "mq2_adc" as const,
                 value: reading.payload.sensors.mq2.adc_raw,
-                unit: 'ADC',
+                unit: "ADC",
                 sensor: reading.payload.sensors.mq2,
                 icon: Wind,
-                color: 'teal',
+                color: "teal",
               },
               {
-                title: 'MQ-7',
+                title: "MQ-7",
+                metric: "mq7_adc" as const,
                 value: reading.payload.sensors.mq7.adc_raw,
-                unit: 'ADC',
+                unit: "ADC",
                 sensor: reading.payload.sensors.mq7,
                 icon: Wind,
-                color: 'purple',
+                color: "purple",
               },
-            ].map(({ title, value, unit, sensor, icon: Icon, color }) => (
-              <article className="panel sensor-card" key={title} aria-label={title}>
-                <div className="sensor-heading">
-                  <span>{title}</span>
-                  <span className={`icon-box ${color}`}>
-                    <Icon size={20} />
+            ].map(
+              ({
+                title,
+                metric,
+                value,
+                unit,
+                sensor,
+                icon: Icon,
+                color,
+              }: {
+                title: string;
+                metric: DisplayMetric;
+                value: number | null;
+                unit: string;
+                sensor: { quality: keyof typeof qualityText; age_ms: number };
+                icon: typeof Thermometer;
+                color: string;
+              }) => (
+                <article
+                  className="panel sensor-card"
+                  key={title}
+                  aria-label={title}
+                >
+                  <div className="sensor-heading">
+                    <span>{title}</span>
+                    <span className={`icon-box ${color}`}>
+                      <Icon size={20} />
+                    </span>
+                  </div>
+                  <div className="reading-value">
+                    {formatSensorValue(metric, value)} <small>{unit}</small>
+                  </div>
+                  <p>{qualityText[sensor.quality]}</p>
+                  <span className="freshness">
+                    {sensorFreshness(
+                      reading,
+                      sensor.age_ms,
+                      now ?? clock,
+                      title === "MQ-7" ? 180000 : 15000,
+                    )}
                   </span>
-                </div>
-                <div className="reading-value">
-                  {value ?? '—'} <small>{unit}</small>
-                </div>
-                <p>{qualityText[sensor.quality]}</p>
-                <span className="freshness">
-                  {sensorFreshness(
-                    reading,
-                    sensor.age_ms,
-                    now ?? clock,
-                    title === 'MQ-7' ? 180000 : 15000,
-                  )}
-                </span>
-              </article>
-            ))}
+                </article>
+              ),
+            )}
           </div>
           <div className="panel alert-strip">
             <Flame size={22} />
@@ -102,27 +140,32 @@ export function SensorPanel({ device, now }: { device: DeviceView; now?: number 
               <strong>Flame Sensor</strong>
               <p>
                 {reading.payload.sensors.flame.detected === null
-                  ? 'Chưa xác định'
+                  ? "Chưa xác định"
                   : reading.payload.sensors.flame.detected
-                    ? 'Có tín hiệu phát hiện lửa'
-                    : 'Không phát hiện'}
+                    ? "Có tín hiệu phát hiện lửa"
+                    : "Không phát hiện"}
               </p>
             </div>
             <span
-              className={`badge ${reading.payload.alert_snapshot.flame === 'active' ? 'danger' : ''}`}
+              className={`badge ${reading.payload.alert_snapshot.flame === "active" ? "danger" : ""}`}
             >
               {alertText[reading.payload.alert_snapshot.flame]}
             </span>
             <span className="muted">
-              Lệnh còi: {reading.payload.alert_snapshot.buzzer_commanded_on ? 'Bật' : 'Tắt'}
+              Lệnh còi:{" "}
+              {reading.payload.alert_snapshot.buzzer_commanded_on
+                ? "Bật"
+                : "Tắt"}
             </span>
           </div>
           <div className="gas-policies">
             <span>
-              Gas: <strong>{alertText[reading.payload.alert_snapshot.gas]}</strong>
+              Gas:{" "}
+              <strong>{alertText[reading.payload.alert_snapshot.gas]}</strong>
             </span>
             <span>
-              CO: <strong>{alertText[reading.payload.alert_snapshot.co]}</strong>
+              CO:{" "}
+              <strong>{alertText[reading.payload.alert_snapshot.co]}</strong>
             </span>
           </div>
         </>

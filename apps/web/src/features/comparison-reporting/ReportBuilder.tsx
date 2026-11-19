@@ -1,18 +1,11 @@
 import { useState } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { FileDown, Printer } from "lucide-react";
 import type { AnalyticsView, DeviceView, IncidentView } from "@iot/contracts";
-import { api } from "../../lib/api.js";
+import { api, apiPage } from "../../lib/api.js";
 import { AdminAnalysisPanel } from "./AdminAnalysisPanel.js";
 import { RangeFields } from "./RangeFields.js";
+import { ReportChart } from "./ReportChart.js";
+import { reportComment, reportHasData } from "./report-utils.js";
 import {
   METRICS,
   METRIC_LABEL,
@@ -28,20 +21,18 @@ import {
   rangeParams,
 } from "./utils.js";
 
-function reportComment(data: AnalyticsView | undefined, range: RangeInput) {
-  if (!data || !data.summary.valid_count)
-    return "Chưa đủ dữ liệu hợp lệ để đánh giá khoảng thời gian này.";
-  const quality = coverage(data, range);
-  if (quality.percent !== null && quality.percent < 70)
-    return "Dữ liệu chưa phủ đủ phần lớn khoảng đã chọn; kết luận chỉ mang tính tham khảo.";
-  const values = data.series
-    .map((point) => point.average)
-    .filter((value): value is number => value !== null);
-  if (values.length < 2) return "Chưa đủ điểm dữ liệu để nhận xét xu hướng.";
-  const change = values.at(-1)! - values[0]!;
-  if (Math.abs(change) < 0.01)
-    return "Chỉ số nhìn chung ổn định trong các điểm dữ liệu đã ghi nhận.";
-  return `Chỉ số có xu hướng ${change > 0 ? "tăng" : "giảm"} trong các điểm dữ liệu đã ghi nhận.`;
+async function loadIncidents(basePath: string) {
+  const incidents: IncidentView[] = [];
+  let cursor: string | undefined;
+  for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
+    const page = await apiPage<IncidentView[]>(
+      `${basePath}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    );
+    incidents.push(...page.data);
+    cursor = page.meta.next_cursor ?? undefined;
+    if (!cursor) return { incidents, complete: true };
+  }
+  return { incidents, complete: false };
 }
 
 export function ReportBuilder({
@@ -76,7 +67,7 @@ export function ReportBuilder({
     setError("");
     try {
       const params = rangeParams(range, "temperature_c");
-      const [analytics, incidents] = await Promise.all([
+      const [analytics, incidentResult] = await Promise.all([
         Promise.all(
           METRICS.map((metric) =>
             api<AnalyticsView>(
@@ -84,7 +75,7 @@ export function ReportBuilder({
             ),
           ),
         ),
-        api<IncidentView[]>(
+        loadIncidents(
           `/alerts/incidents?device_id=${deviceId}&from=${encodeURIComponent(params.get("from")!)}&to=${encodeURIComponent(params.get("to")!)}&limit=100`,
         ),
       ]);
@@ -95,9 +86,13 @@ export function ReportBuilder({
         analytics: Object.fromEntries(
           METRICS.map((metric, index) => [metric, analytics[index]]),
         ),
-        incidents,
-        incidentsMayBeTruncated: incidents.length === 100,
+        incidents: incidentResult.incidents,
+        incidentsComplete: incidentResult.complete,
       });
+      if (!reportHasData(analytics))
+        setError(
+          "Khoảng thời gian đã chọn không có mẫu cảm biến hợp lệ. Báo cáo vẫn hiển thị để kiểm tra chất lượng dữ liệu.",
+        );
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Không tạo được báo cáo.",
@@ -106,23 +101,32 @@ export function ReportBuilder({
       setLoading(false);
     }
   }
+  async function printReport() {
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    window.print();
+  }
   return (
     <section className="cr-section">
       <div className="panel cr-controls no-print">
-        <label>
-          Phòng/thiết bị
-          <select
-            value={deviceId}
-            onChange={(event) => setDeviceId(event.target.value)}
-          >
-            <option value="">Chọn thiết bị</option>
-            {devices.map((device) => (
-              <option key={device.id} value={device.id}>
-                {device.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="cr-device-row">
+          <label>
+            Phòng/thiết bị
+            <select
+              value={deviceId}
+              onChange={(event) => setDeviceId(event.target.value)}
+            >
+              <option value="">Chọn thiết bị</option>
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>
+                  {device.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <RangeFields value={range} onChange={setRange} />
         <div className="cr-actions">
           <button
@@ -166,7 +170,10 @@ export function ReportBuilder({
               <span>AIRGUARD</span>
               <h1>Báo cáo giám sát môi trường</h1>
             </div>
-            <button className="primary no-print" onClick={() => window.print()}>
+            <button
+              className="primary no-print"
+              onClick={() => void printReport()}
+            >
               <Printer size={17} /> Tải báo cáo PDF
             </button>
           </header>
@@ -178,8 +185,11 @@ export function ReportBuilder({
               <b>Vị trí:</b> {report.device.location || "Chưa cấu hình"}
             </p>
             <p>
-              <b>Thời gian:</b>{" "}
-              {formatTime(new Date(report.range.from).toISOString())} –{" "}
+              <b>Bắt đầu:</b>{" "}
+              {formatTime(new Date(report.range.from).toISOString())}
+            </p>
+            <p>
+              <b>Kết thúc:</b>{" "}
               {formatTime(new Date(report.range.to).toISOString())}
             </p>
             <p>
@@ -204,9 +214,10 @@ export function ReportBuilder({
                   </strong>
                   <small>
                     Min {formatValue(data?.summary.min ?? null, data?.unit)} ·
-                    Max {formatValue(data?.summary.max ?? null, data?.unit)}
+                    Max {formatValue(data?.summary.max ?? null, data?.unit)} ·{" "}
+                    {data?.summary.valid_count ?? 0} mẫu hợp lệ
                   </small>
-                  <p>{reportComment(data, report.range)}</p>
+                  <p>{reportComment(metric, data, report.range)}</p>
                 </section>
               );
             })}
@@ -219,25 +230,7 @@ export function ReportBuilder({
                 <section key={metric}>
                   <h3>{METRIC_LABEL[metric]}</h3>
                   {data?.series.some((point) => point.average !== null) ? (
-                    <ResponsiveContainer width="100%" height={190}>
-                      <LineChart data={data.series}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="bucket_start"
-                          tickFormatter={(value) =>
-                            new Date(String(value)).toLocaleDateString("vi-VN")
-                          }
-                        />
-                        <YAxis />
-                        <Tooltip />
-                        <Line
-                          dataKey="average"
-                          stroke="#118c75"
-                          dot={false}
-                          connectNulls={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <ReportChart data={data} />
                   ) : (
                     <p>Không có dữ liệu hợp lệ.</p>
                   )}
@@ -245,18 +238,84 @@ export function ReportBuilder({
               );
             })}
           </div>
-          <h2>Sự kiện nổi bật</h2>
-          <p>
-            {report.incidents.length
-              ? `Ghi nhận ${report.incidents.length}${report.incidentsMayBeTruncated ? "+" : ""} sự cố trong phần dữ liệu API trả về.`
-              : "Không ghi nhận sự cố trong phần dữ liệu API trả về."}
-          </p>
-          {report.incidentsMayBeTruncated ? (
-            <p className="muted">
-              API giới hạn 100 sự cố; báo cáo không khẳng định đây là toàn bộ
-              lịch sử.
+          <section className="cr-report-quality">
+            <h2>Chất lượng dữ liệu</h2>
+            <div className="cr-quality-grid">
+              {METRICS.map((metric) => {
+                const data = report.analytics[metric];
+                const quality = coverage(data, report.range);
+                return (
+                  <div key={metric}>
+                    <b>{METRIC_LABEL[metric]}</b>
+                    <span>Hợp lệ: {data?.summary.valid_count ?? 0}</span>
+                    <span>
+                      Không hợp lệ: {data?.summary.invalid_count ?? 0}
+                    </span>
+                    <span>
+                      Bucket: {quality.present}/{quality.expected} · thiếu{" "}
+                      {quality.missing}
+                    </span>
+                    <span>
+                      Độ phủ:{" "}
+                      {quality.percent === null
+                        ? "Không xác định"
+                        : `${quality.percent.toFixed(1)}%`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+          <section className="cr-incidents">
+            <h2>Sự kiện nổi bật</h2>
+            <p>
+              {report.incidents.length
+                ? `Ghi nhận ${report.incidents.length}${report.incidentsComplete ? "" : "+"} sự cố trong dữ liệu truy xuất.`
+                : "Không ghi nhận sự cố trong phần dữ liệu API trả về."}
             </p>
-          ) : null}
+            {report.incidents.length ? (
+              <div className="cr-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Loại</th>
+                      <th>Thời điểm</th>
+                      <th>Mức độ</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.incidents.map((incident) => (
+                      <tr key={incident.id}>
+                        <td>{incident.condition.toUpperCase()}</td>
+                        <td>
+                          {formatTime(
+                            incident.started_at ?? incident.first_observed_at,
+                          )}
+                        </td>
+                        <td>
+                          {incident.severity === "critical"
+                            ? "Nghiêm trọng"
+                            : "Cảnh báo"}
+                        </td>
+                        <td>
+                          {incident.status === "active"
+                            ? "Đang diễn ra"
+                            : "Đã kết thúc"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            {!report.incidentsComplete ? (
+              <p className="muted">
+                Đã đạt giới hạn an toàn 1.000 sự cố; báo cáo không khẳng định
+                đây là toàn bộ lịch sử.
+              </p>
+            ) : null}
+          </section>
           {isAdmin ? (
             <section>
               <h2>Phân tích kỹ thuật</h2>
