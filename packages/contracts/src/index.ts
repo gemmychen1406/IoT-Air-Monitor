@@ -126,3 +126,4 @@ export * from './features.js';
 export * from './users.js';
 export * from './push.js';
 export * from './gas-level.js';
+export * from './device-diagnostics.js';
