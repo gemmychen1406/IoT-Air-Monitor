@@ -474,6 +474,55 @@ nav a:hover {
   margin: 0;
   font-size: 11px;
 }
+.gas-level {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.gas-level p {
+  margin: 4px 0 0;
+}
+.gas-level small {
+  color: var(--muted);
+}
+.level-normal {
+  color: #34d399;
+  background: #34d39914;
+  border-color: #34d3994a;
+}
+.level-notice {
+  color: #fbbf24;
+  background: #fbbf2414;
+  border-color: #fbbf244a;
+}
+.level-warning {
+  color: #fb923c;
+  background: #fb923c1a;
+  border-color: #fb923c66;
+}
+.level-danger {
+  color: #f87171;
+  background: #f871711f;
+  border-color: #f8717180;
+  font-weight: 600;
+}
+.level-unknown {
+  color: var(--muted);
+}
+:root[data-theme='light'] .level-normal {
+  color: #047857;
+}
+:root[data-theme='light'] .level-notice {
+  color: #92400e;
+}
+:root[data-theme='light'] .level-warning {
+  color: #c2410c;
+}
+:root[data-theme='light'] .level-danger {
+  color: #b91c1c;
+}
 .freshness {
   display: block;
   font-size: 10px;

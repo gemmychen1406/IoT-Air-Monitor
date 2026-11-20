@@ -31,7 +31,9 @@ export function SensorMeaningGuide({ device }: { device: DeviceView }) {
           <dt>MQ-2 / MQ-7 (ADC)</dt>
           <dd>
             Tín hiệu điện thô từ cảm biến khí. Đây chưa phải nồng độ ppm, AQI
-            hoặc phần trăm khí vì chưa có quy trình hiệu chuẩn.
+            hoặc phần trăm khí vì chưa có quy trình hiệu chuẩn. “Mức” hiển thị
+            (Bình thường / Chú ý / Cảnh báo / Nguy hiểm) là ước tính theo tỷ lệ
+            tín hiệu trên thang đo và ngưỡng mặc định, chỉ dùng để cảnh báo sớm.
           </dd>
         </div>
       </dl>

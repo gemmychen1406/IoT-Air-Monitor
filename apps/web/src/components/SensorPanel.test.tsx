@@ -50,3 +50,17 @@ it('does not show normal readings when no telemetry has arrived', () => {
   expect(screen.getByText('Chưa có dữ liệu cảm biến')).toBeInTheDocument();
   expect(screen.queryByText('Không phát hiện')).not.toBeInTheDocument();
 });
+it('shows a human-readable level next to the raw gas value', () => {
+  const d = device();
+  d.latest!.payload.sensors.mq2.adc_raw = 3500;
+  d.latest!.payload.sensors.mq2.adc_bits = 12;
+  render(<SensorPanel device={d} now={now} />);
+  expect(screen.getByLabelText('MQ-2')).toHaveTextContent('3500');
+  expect(screen.getByLabelText('MQ-2')).toHaveTextContent('Mức: Nguy hiểm');
+});
+it('shows no level when the device is offline', () => {
+  const d = device();
+  d.status = 'offline';
+  render(<SensorPanel device={d} now={now} />);
+  expect(screen.getByLabelText('MQ-7')).toHaveTextContent('Mức: Chưa đánh giá');
+});
