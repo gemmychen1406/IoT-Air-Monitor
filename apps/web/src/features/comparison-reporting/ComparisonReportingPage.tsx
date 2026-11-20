@@ -68,7 +68,6 @@ export default function ComparisonReportingPage({
     <div className="cr-page">
       <div className="page-title">
         <div>
-          <span className="eyebrow">SO SÁNH & BÁO CÁO</span>
           <h1>Hiểu dữ liệu môi trường dễ dàng hơn</h1>
           <p>
             Chọn phòng, khoảng thời gian và xem kết quả từ dữ liệu cảm biến thực

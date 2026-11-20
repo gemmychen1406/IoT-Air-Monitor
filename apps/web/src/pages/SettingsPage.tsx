@@ -45,7 +45,7 @@ export default function SettingsPage({
   }
   return (
     <>
-      <PageTitle eyebrow="PREFERENCES" title="Cài đặt">
+      <PageTitle title="Cài đặt">
         <p>Tài khoản và giao diện làm việc.</p>
       </PageTitle>
       <PushSettings />

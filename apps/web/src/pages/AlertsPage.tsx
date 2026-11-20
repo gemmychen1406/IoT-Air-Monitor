@@ -30,7 +30,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
   const rows = list.data?.pages.flatMap((page) => page.data) ?? [];
   return (
     <>
-      <PageTitle eyebrow="INCIDENT MANAGEMENT" title="Cảnh báo & sự cố">
+      <PageTitle title="Cảnh báo & sự cố">
         <p>
           Lịch sử có bắt đầu/kết thúc và xác nhận độc lập. Mất Internet hoặc acknowledge không đóng
           sự cố.

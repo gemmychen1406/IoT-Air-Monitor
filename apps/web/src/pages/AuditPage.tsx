@@ -25,7 +25,7 @@ export default function AuditPage({ user }: { user: UserView }) {
   if (user.role !== 'admin') return <p role="alert">Chỉ admin được đọc nhật ký quản trị.</p>;
   return (
     <>
-      <PageTitle eyebrow="AUDIT TRAIL" title="Nhật ký quản trị">
+      <PageTitle title="Nhật ký quản trị">
         <p>Lịch sử thay đổi và người thực hiện; không chứa raw key hoặc mật khẩu.</p>
       </PageTitle>
       <form className="panel filter-grid" onSubmit={submit}>

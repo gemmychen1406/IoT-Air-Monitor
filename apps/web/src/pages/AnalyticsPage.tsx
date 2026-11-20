@@ -101,7 +101,7 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
   const result = analytics.data;
   return (
     <>
-      <PageTitle eyebrow="HISTORICAL ANALYTICS" title="Analytics & lịch sử">
+      <PageTitle title="Analytics & lịch sử">
         <p>
           Thống kê mẫu đủ điều kiện, lọc thời gian và xuất dữ liệu thực tế. Khoảng thời gian [từ,
           đến) tối đa 90 ngày.

@@ -13,13 +13,12 @@ export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
     <>
       <div className="page-title">
         <div>
-          <span className="eyebrow">LIVE MONITORING</span>
           <h1>Giám sát trực tiếp</h1>
-          <p>Tín hiệu cảm biến, chất lượng và thời điểm cập nhật.</p>
+          <p>Số đo mới nhất từ cảm biến.</p>
         </div>
         {selected ? (
           <label className="device-select">
-            Thiết bị đang xem
+            Thiết bị
             <select
               value={selected.id}
               onChange={(e) => {
@@ -43,7 +42,7 @@ export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
           <section className="panel chart-panel">
             <div className="section-heading">
               <h2>Nhiệt độ & độ ẩm</h2>
-              <span className="badge">120 mẫu gần nhận nhất</span>
+              <span className="badge">120 mẫu gần nhất</span>
             </div>
             <Suspense fallback={<div className="skeleton" />}>
               <MonitoringChart deviceId={selected.id} />

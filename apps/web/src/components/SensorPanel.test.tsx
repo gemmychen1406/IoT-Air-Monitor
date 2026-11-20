@@ -20,11 +20,11 @@ const device = (): DeviceView => ({
     payload: telemetrySchema.parse(samplePayload()).readings[0]!,
   },
 });
-it('labels simulated raw gas readings without claiming PPM or safety', () => {
+it('labels simulated gas readings without claiming PPM or safety', () => {
   render(<SensorPanel device={device()} now={now} />);
   expect(screen.getByText(/Dữ liệu mô phỏng/)).toBeInTheDocument();
   expect(screen.getByText('1250')).toBeInTheDocument();
-  expect(screen.getAllByText('Chưa cấu hình đánh giá')).toHaveLength(2);
+  expect(screen.queryByText('Chưa cấu hình đánh giá')).not.toBeInTheDocument();
   expect(screen.queryByText(/an toàn/i)).not.toBeInTheDocument();
 });
 it('shows an invalid sensor as missing rather than zero', () => {
@@ -56,11 +56,11 @@ it('shows a human-readable level next to the raw gas value', () => {
   d.latest!.payload.sensors.mq2.adc_bits = 12;
   render(<SensorPanel device={d} now={now} />);
   expect(screen.getByLabelText('MQ-2')).toHaveTextContent('3500');
-  expect(screen.getByLabelText('MQ-2')).toHaveTextContent('Mức: Nguy hiểm');
+  expect(screen.getByLabelText('MQ-2')).toHaveTextContent('Nguy hiểm');
 });
 it('shows no level when the device is offline', () => {
   const d = device();
   d.status = 'offline';
   render(<SensorPanel device={d} now={now} />);
-  expect(screen.getByLabelText('MQ-7')).toHaveTextContent('Mức: Chưa đánh giá');
+  expect(screen.getByLabelText('MQ-7')).toHaveTextContent('Chưa đánh giá');
 });

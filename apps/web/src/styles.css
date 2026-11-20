@@ -298,11 +298,11 @@ nav a:hover {
   width: calc(100% - 238px);
 }
 .topbar {
-  height: 76px;
+  height: 64px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 34px;
   gap: 15px;
 }
@@ -473,6 +473,9 @@ nav a:hover {
   color: var(--muted);
   margin: 0;
   font-size: 11px;
+}
+.simulation-badge {
+  margin-bottom: 14px;
 }
 .gas-level {
   margin-top: 10px;

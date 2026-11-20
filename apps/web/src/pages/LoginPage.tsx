@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Activity, Radio, ShieldCheck } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import type { UserView } from '@iot/contracts';
 import { api } from '../lib/api.js';
 
@@ -25,30 +25,17 @@ export default function LoginPage({ onLogin }: { onLogin: (session: SessionView)
           </span>{' '}
           AirGuard<span className="brand-sub">MONITOR</span>
         </div>
-        <span className="eyebrow">IOT OBSERVABILITY PLATFORM</span>
         <h1>
-          Dữ liệu rõ ràng.
+          Giám sát khí gas
           <br />
-          <span>Giám sát chủ động.</span>
+          <span>và chất lượng không khí.</span>
         </h1>
-        <p>Theo dõi thiết bị và tín hiệu cảm biến trên một không gian làm việc thống nhất.</p>
-        <div className="login-feature">
-          <Radio size={20} />
-          <span>Telemetry thời gian thực</span>
-        </div>
-        <div className="login-feature">
-          <ShieldCheck size={20} />
-          <span>Truy cập được phân quyền</span>
-        </div>
-        <div className="research-note">
-          Dự án nghiên cứu và học tập. Không thay thế thiết bị cảnh báo an toàn đạt chứng nhận.
-        </div>
+        <p>Theo dõi nồng độ khí, nhiệt độ và độ ẩm theo thời gian thực.</p>
       </section>
       <section className="login-form-area">
         <form onSubmit={submit} className="login-form panel">
-          <span className="eyebrow">CHÀO MỪNG TRỞ LẠI</span>
           <h2>Đăng nhập</h2>
-          <p className="muted">Sử dụng tài khoản được quản trị viên cấp.</p>
+          <p className="muted">Dùng tài khoản do quản trị viên cấp.</p>
           <label>
             Email
             <input
@@ -78,9 +65,6 @@ export default function LoginPage({ onLogin }: { onLogin: (session: SessionView)
           <button className="primary full" disabled={login.isPending}>
             {login.isPending ? 'Đang xác thực…' : 'Đăng nhập'}
           </button>
-          <p className="caption">
-            Giữ đăng nhập tối đa 8 giờ bằng cookie bảo mật. Refresh trang không cần đăng nhập lại.
-          </p>
         </form>
       </section>
     </main>

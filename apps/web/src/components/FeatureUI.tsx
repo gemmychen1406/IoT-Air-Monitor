@@ -4,18 +4,15 @@ export const dateText = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString('vi-VN') : 'Chưa xác định';
 export const conditionText = { gas: 'Gas', co: 'CO', flame: 'Flame' };
 export function PageTitle({
-  eyebrow,
   title,
   children,
 }: {
-  eyebrow: string;
   title: string;
   children?: ReactNode;
 }) {
   return (
     <div className="page-title">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
         <h1>{title}</h1>
         {children}
       </div>

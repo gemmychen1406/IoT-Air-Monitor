@@ -37,17 +37,15 @@ export function SensorPanel({
   return (
     <section aria-label={`Cảm biến ${device.name}`}>
       {device.source_kind === "simulator" ? (
-        <div className="notice simulation">
-          <Activity size={16} /> Dữ liệu mô phỏng — không phải số đo phần cứng
-        </div>
+        <span className="badge simulation simulation-badge">
+          <Activity size={14} /> Dữ liệu mô phỏng
+        </span>
       ) : null}
       {!reading ? (
         <div className="empty">
           <Activity size={30} />
           <h3>Chưa có dữ liệu cảm biến</h3>
-          <p>
-            Đăng ký credential và kết nối thiết bị hoặc simulator để bắt đầu.
-          </p>
+          <p>Dữ liệu sẽ hiện ngay khi thiết bị gửi số đo đầu tiên.</p>
         </div>
       ) : (
         <>
@@ -152,20 +150,25 @@ export function SensorPanel({
                     <div className="reading-value">
                       {formatSensorValue(metric, value)} <small>{unit}</small>
                     </div>
-                    <p>{qualityText[sensor.quality]}</p>
+                    {sensor.quality === "valid" ||
+                    sensor.quality === "uncalibrated" ? null : (
+                      <p>{qualityText[sensor.quality]}</p>
+                    )}
                     {level ? (
                       <div className={`gas-level level-${level.id}`}>
-                        <strong>Mức: {level.label}</strong>
+                        <strong>{level.label}</strong>
                         {level.ratio !== null ? (
                           <small>
                             {" "}
-                            · ~{Math.round(level.ratio * 100)}% thang đo
+                            · {Math.round(level.ratio * 100)}% thang đo
                           </small>
                         ) : null}
                         {level.rank ? <p>{level.advice}</p> : null}
                       </div>
                     ) : null}
-                    <span className="freshness">{freshness}</span>
+                    {freshness === "Dữ liệu mới" ? null : (
+                      <span className="freshness">{freshness}</span>
+                    )}
                   </article>
                 );
               },
@@ -174,36 +177,21 @@ export function SensorPanel({
           <div className="panel alert-strip">
             <Flame size={22} />
             <div>
-              <strong>Flame Sensor</strong>
+              <strong>Cảm biến lửa</strong>
               <p>
                 {reading.payload.sensors.flame.detected === null
                   ? "Chưa xác định"
                   : reading.payload.sensors.flame.detected
-                    ? "Có tín hiệu phát hiện lửa"
+                    ? "Phát hiện lửa"
                     : "Không phát hiện"}
               </p>
             </div>
-            <span
-              className={`badge ${reading.payload.alert_snapshot.flame === "active" ? "danger" : ""}`}
-            >
-              {alertText[reading.payload.alert_snapshot.flame]}
-            </span>
-            <span className="muted">
-              Lệnh còi:{" "}
-              {reading.payload.alert_snapshot.buzzer_commanded_on
-                ? "Bật"
-                : "Tắt"}
-            </span>
-          </div>
-          <div className="gas-policies">
-            <span>
-              Gas:{" "}
-              <strong>{alertText[reading.payload.alert_snapshot.gas]}</strong>
-            </span>
-            <span>
-              CO:{" "}
-              <strong>{alertText[reading.payload.alert_snapshot.co]}</strong>
-            </span>
+            {reading.payload.alert_snapshot.flame === "active" ? (
+              <span className="badge danger">Đang cảnh báo</span>
+            ) : null}
+            {reading.payload.alert_snapshot.buzzer_commanded_on ? (
+              <span className="muted">Còi đang bật</span>
+            ) : null}
           </div>
         </>
       )}

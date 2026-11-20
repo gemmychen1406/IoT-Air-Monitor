@@ -39,7 +39,7 @@ export default function UsersPage({ user }: { user: UserView }) {
   if (user.role !== 'admin') return <p role="alert">Chỉ admin được quản lý tài khoản.</p>;
   return (
     <>
-      <PageTitle eyebrow="ACCESS MANAGEMENT" title="Tài khoản">
+      <PageTitle title="Tài khoản">
         <p>
           Admin quản lý quyền và khóa tài khoản. Thay đổi quyền/mật khẩu thu hồi mọi phiên của tài
           khoản đó.

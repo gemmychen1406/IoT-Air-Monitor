@@ -44,7 +44,7 @@ export default function DevicesPage({ devices, user }: { devices: DeviceView[]; 
   }
   return (
     <>
-      <PageTitle eyebrow="DEVICE MANAGEMENT" title="Thiết bị">
+      <PageTitle title="Thiết bị">
         <p>
           Metadata, credentials, cấu hình có version và lịch sử kết nối. Source chỉ định lúc đăng
           ký, không đổi nhãn dữ liệu cũ.

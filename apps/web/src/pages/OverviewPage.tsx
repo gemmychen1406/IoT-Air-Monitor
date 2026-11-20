@@ -1,4 +1,4 @@
-import { Cpu, Radio, Server, Bell, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Cpu, Radio, Server, Bell, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router';
 import type { DeviceView } from '@iot/contracts';
 import { SensorPanel } from '../components/SensorPanel.js';
@@ -22,61 +22,54 @@ export default function OverviewPage({
     <>
       <div className="page-title">
         <div>
-          <span className="eyebrow">SYSTEM OVERVIEW</span>
           <h1>Tổng quan hệ thống</h1>
-          <p>Quan sát kết nối và dữ liệu cảm biến tại một nơi.</p>
+          <p>Tình trạng thiết bị và chất lượng không khí.</p>
         </div>
-        <span className="badge">{import.meta.env.PROD ? 'Online workspace' : 'Local workspace'}</span>
       </div>
       <div className="stats-grid">
         {[
           {
-            title: 'Tổng thiết bị',
+            title: 'Thiết bị',
             value: devices.length,
             icon: Cpu,
-            caption: 'Nguồn dữ liệu chưa lưu trữ',
           },
           {
             title: 'Đang online',
             value: online,
             icon: Radio,
-            caption: 'Theo last_seen và chu kỳ gửi',
           },
           {
-            title: 'Chưa online',
+            title: 'Mất kết nối',
             value: devices.length - online,
             icon: Server,
-            caption: 'Offline hoặc chưa từng kết nối',
           },
           {
-            title: 'Sự cố chưa kết thúc',
+            title: 'Sự cố đang mở',
             value: activeIncidents,
             icon: Bell,
-            caption: 'Xác nhận đã xem không đóng sự cố',
           },
-        ].map(({ title, value, icon: Icon, caption }) => (
+        ].map(({ title, value, icon: Icon }) => (
           <article className="panel stat-card" key={title}>
             <span>
               {title}
               <Icon size={18} />
             </span>
             <strong>{value ?? '—'}</strong>
-            <small>{caption}</small>
           </article>
         ))}
       </div>
       <div className="section-heading">
         <div>
-          <h2>Dữ liệu cảm biến</h2>
+          <h2>Cảm biến</h2>
           <p className="muted">
             {selected
-              ? `${selected.name} · Nhận cuối: ${dateText(selected.last_seen_at)}`
-              : 'Chọn một nguồn dữ liệu để bắt đầu'}
+              ? `${selected.name} · cập nhật ${dateText(selected.last_seen_at)}`
+              : 'Chọn một thiết bị để xem'}
           </p>
         </div>
         {selected ? (
           <label className="device-select">
-            Thiết bị đang xem
+            Thiết bị
             <select value={selected.id} onChange={(e) => onSelect(e.target.value)}>
               {devices.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -97,20 +90,13 @@ export default function OverviewPage({
         <div className="panel empty">
           <Cpu size={34} />
           <h3>Chưa có thiết bị</h3>
-          <p>Đăng ký simulator hoặc ESP32. Dashboard không tự tạo dữ liệu.</p>
+          <p>Thêm thiết bị để bắt đầu nhận dữ liệu.</p>
           <Link className="primary" to="/app/devices">
-            Quản lý thiết bị
+            Thêm thiết bị
             <ArrowUpRight size={16} />
           </Link>
         </div>
       )}
-      <div className="notice">
-        <ShieldCheck size={18} />
-        <span>
-          MQ-2/MQ-7 đang dùng tín hiệu thô. Chưa công bố nồng độ khí hoặc chỉ số chất lượng không
-          khí.
-        </span>
-      </div>
     </>
   );
 }

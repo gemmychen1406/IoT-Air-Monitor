@@ -43,7 +43,6 @@ export default function IncidentPage({ user }: { user: UserView }) {
       {incident ? (
         <>
           <PageTitle
-            eyebrow="INCIDENT DETAIL"
             title={`Sự cố ${conditionText[incident.condition]} · ${incident.device_name}`}
           >
             <p>ID: {incident.id}</p>

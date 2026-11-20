@@ -425,7 +425,7 @@ export default function DeviceDetailPage({ user }: { user: UserView }) {
       />
       {device.data ? (
         <>
-          <PageTitle eyebrow="DEVICE DETAIL" title={device.data.name}>
+          <PageTitle title={device.data.name}>
             <p>Metadata, credentials, cấu hình và kết nối.</p>
           </PageTitle>
           <Metadata device={device.data} admin={user.role === 'admin'} />
