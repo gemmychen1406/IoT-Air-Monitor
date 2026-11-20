@@ -21,6 +21,7 @@ import { allowedWebOrigins } from './lib/origins.js';
 import { registerDeviceTransport, registerDevices } from './modules/devices.js';
 import { registerAlertTransport, registerAlerts } from './modules/alerts.js';
 import { registerAnalytics } from './modules/analytics.js';
+import { registerDeviceDiagnostics } from './modules/device-diagnostics/routes.js';
 import { registerUsers } from './modules/users.js';
 import type { AlertNotifier } from './modules/notifications.js';
 import { registerPushSubscriptions } from './modules/push-subscriptions.js';
@@ -200,6 +201,7 @@ export function createApp({
   registerDevices(features, context);
   registerAlerts(features, context);
   registerAnalytics(features, context);
+  registerDeviceDiagnostics(features, context);
   registerUsers(features, context, onLogout);
   registerPushSubscriptions(features, context, webPush);
   app.use('/api/v1', features);

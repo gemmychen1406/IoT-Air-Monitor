@@ -33,6 +33,7 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage.js'));
 const UsersPage = lazy(() => import('./pages/UsersPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
+const DeviceDiagnosticsPage = lazy(() => import('./features/device-diagnostics/DeviceDiagnosticsPage.js'));
 const ComparisonReportingPage = lazy(
   () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
 );
@@ -42,6 +43,7 @@ const navigation = [
   { path: '/app/alerts', icon: Bell, label: 'Cảnh báo & sự cố' },
   { path: '/app/analytics', icon: ChartNoAxesCombined, label: 'Analytics & lịch sử' },
   { path: '/app/devices', icon: Cpu, label: 'Thiết bị' },
+  { path: '/app/device-diagnostics', icon: Activity, label: 'Kiểm tra thiết bị' },
   { path: '/app/comparison-reporting', icon: GitCompareArrows, label: 'So sánh & Báo cáo' },
   { path: '/app/settings', icon: Settings, label: 'Cài đặt' },
   { path: '/app/extensions', icon: Activity, label: 'Tiện ích mở rộng' },
@@ -318,6 +320,7 @@ export function App() {
                 element={<ComparisonReportingPage devices={devices} user={session.user} />}
               />
               <Route path="/app/extensions" element={<ExtensionsHub />} />
+              <Route path="/app/device-diagnostics" element={<DeviceDiagnosticsPage key={session.user.id} devices={devices} userId={session.user.id} />} />
               <Route path="/app/users" element={<UsersPage user={session.user} />} />
               <Route path="/app/audit" element={<AuditPage user={session.user} />} />
               <Route
