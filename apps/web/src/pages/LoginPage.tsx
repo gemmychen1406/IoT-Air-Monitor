@@ -8,13 +8,19 @@ export type SessionView = { user: UserView; expires_at: string };
 export default function LoginPage({ onLogin }: { onLogin: (session: SessionView) => void }) {
   const login = useMutation({
     mutationFn: (input: { email: string; password: string }) =>
-      api<SessionView>('/auth/login', { method: 'POST', body: JSON.stringify(input) }),
+      api<SessionView>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     onSuccess: onLogin,
   });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    login.mutate({ email: String(data.get('email')), password: String(data.get('password')) });
+    login.mutate({
+      email: String(data.get('email')),
+      password: String(data.get('password')),
+    });
   }
   return (
     <main className="login-layout">

@@ -42,9 +42,7 @@ export default function IncidentPage({ user }: { user: UserView }) {
       />
       {incident ? (
         <>
-          <PageTitle
-            title={`Sự cố ${conditionText[incident.condition]} · ${incident.device_name}`}
-          >
+          <PageTitle title={`Sự cố ${conditionText[incident.condition]} · ${incident.device_name}`}>
             <p>ID: {incident.id}</p>
           </PageTitle>
           <section className="panel feature-section">
@@ -76,8 +74,8 @@ export default function IncidentPage({ user }: { user: UserView }) {
               </div>
             </dl>
             <p className="caption">
-              Chưa có sự kiện kết thúc không đồng nghĩa thiết bị vẫn đang đo được nguy hiểm. Kiểm
-              tra kết nối và chất lượng dữ liệu. Xác nhận đã xem không tắt còi.
+              Chưa thấy kết thúc chưa chắc là còn nguy hiểm, hãy kiểm tra kết nối thiết bị. Xác nhận
+              đã xem không tắt còi.
             </p>
           </section>
           <section className="panel feature-section">

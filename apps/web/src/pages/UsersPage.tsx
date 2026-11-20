@@ -40,10 +40,7 @@ export default function UsersPage({ user }: { user: UserView }) {
   return (
     <>
       <PageTitle title="Tài khoản">
-        <p>
-          Admin quản lý quyền và khóa tài khoản. Thay đổi quyền/mật khẩu thu hồi mọi phiên của tài
-          khoản đó.
-        </p>
+        <p>Quản lý quyền và khóa tài khoản.</p>
       </PageTitle>
       <form className="panel inline-form" onSubmit={submit}>
         <label>
@@ -128,7 +125,10 @@ export default function UsersPage({ user }: { user: UserView }) {
                           e.preventDefault();
                           const form = e.currentTarget;
                           update.mutate(
-                            { id: u.id, password: String(new FormData(form).get('password')) },
+                            {
+                              id: u.id,
+                              password: String(new FormData(form).get('password')),
+                            },
                             { onSuccess: () => form.reset() },
                           );
                         }}
@@ -163,9 +163,7 @@ export default function UsersPage({ user }: { user: UserView }) {
         </button>
       ) : null}
       <p className="caption">
-        Không được tự khóa/hạ quyền tài khoản đang dùng hoặc loại bỏ admin cuối cùng. Không xóa tài
-        khoản để giữ liên kết audit và xác nhận sự cố. Mật khẩu tối thiểu 12 ký tự, không được ghi
-        vào log.
+        Mật khẩu tối thiểu 12 ký tự. Không thể khóa chính mình hoặc quản trị viên cuối cùng.
       </p>
     </>
   );

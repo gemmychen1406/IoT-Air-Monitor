@@ -26,7 +26,7 @@ export default function AuditPage({ user }: { user: UserView }) {
   return (
     <>
       <PageTitle title="Nhật ký quản trị">
-        <p>Lịch sử thay đổi và người thực hiện; không chứa raw key hoặc mật khẩu.</p>
+        <p>Ai đã thay đổi gì và vào lúc nào.</p>
       </PageTitle>
       <form className="panel filter-grid" onSubmit={submit}>
         <label>

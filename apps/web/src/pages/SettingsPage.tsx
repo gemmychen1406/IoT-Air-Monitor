@@ -54,9 +54,7 @@ export default function SettingsPage({
         <p>{user.email}</p>
         <span className="badge">Quyền: {user.role}</span>
         <h2>Đổi mật khẩu</h2>
-        <p className="caption">
-          Sau khi đổi, mọi phiên đăng nhập sẽ bị thu hồi. Đăng nhập lại bằng mật khẩu mới.
-        </p>
+        <p className="caption">Đổi mật khẩu sẽ đăng xuất mọi phiên đăng nhập.</p>
         <form className="stack-form" onSubmit={changePassword}>
           <label>
             Mật khẩu hiện tại
@@ -137,10 +135,7 @@ export default function SettingsPage({
           Chuyển sang chế độ {theme === 'dark' ? 'sáng' : 'tối'}
         </button>
         <h2>Chính sách cảnh báo</h2>
-        <p className="muted">
-          Không cung cấp lệnh tắt còi từ dashboard. Ngưỡng gas/CO chưa được cấu hình khi chưa có căn
-          cứ đo lường. Chu kỳ truyền dữ liệu được quản lý riêng tại chi tiết thiết bị.
-        </p>
+        <p className="muted">Còi và ngưỡng cảnh báo gas/CO do thiết bị tự quyết định.</p>
         <h2>Phiên đăng nhập</h2>
         <p className="muted">
           Phiên dùng cookie HttpOnly, hết hạn sau 8 giờ. Refresh trang không cần đăng nhập lại. Đăng

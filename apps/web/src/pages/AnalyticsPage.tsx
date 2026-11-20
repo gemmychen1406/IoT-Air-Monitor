@@ -102,10 +102,7 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
   return (
     <>
       <PageTitle title="Analytics & lịch sử">
-        <p>
-          Thống kê mẫu đủ điều kiện, lọc thời gian và xuất dữ liệu thực tế. Khoảng thời gian [từ,
-          đến) tối đa 90 ngày.
-        </p>
+        <p>Xem lại số đo theo thời gian và xuất file CSV (tối đa 90 ngày).</p>
       </PageTitle>
       {!selected ? (
         <div className="panel empty">Chưa có thiết bị để phân tích.</div>
@@ -168,7 +165,10 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
               <select
                 value={draft.bucket}
                 onChange={(e) =>
-                  setDraft({ ...draft, bucket: e.target.value as typeof draft.bucket })
+                  setDraft({
+                    ...draft,
+                    bucket: e.target.value as typeof draft.bucket,
+                  })
                 }
               >
                 <option value="minute">1 phút</option>
@@ -200,7 +200,7 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
             <button className="primary">Áp dụng bộ lọc</button>
           </form>
           {selected.source_kind === 'simulator' ? (
-            <div className="notice simulation">Dữ liệu mô phỏng — không phải số đo phần cứng.</div>
+            <span className="badge simulation">Dữ liệu mô phỏng</span>
           ) : null}
           <div className="button-row">
             <button onClick={() => csv.mutate()} disabled={csv.isPending}>
@@ -230,8 +230,7 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
             <>
               {result.uses_rollups ? (
                 <p className="notice" role="status">
-                  Khoảng này kết hợp raw còn lưu và dữ liệu đã tổng hợp. CSV raw có thể không còn
-                  đầy đủ; không thể khôi phục từng mẫu từ rollup.
+                  Khoảng này gồm cả dữ liệu đã tổng hợp nên CSV có thể không đủ từng mẫu.
                 </p>
               ) : null}
               <div className="section-heading">
@@ -327,19 +326,12 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="caption">
-                  Mẫu invalid/warming_up/heating không được tính vào thống kê. Khoảng không có mẫu
-                  là gap, không phải giá trị 0. Bucket theo UTC.
-                </p>
               </section>
             </>
           ) : null}
           <section className="panel feature-section">
             <h2>Lịch sử bản ghi</h2>
-            <p className="caption">
-              Thứ tự server nhận giảm dần; gồm cả mẫu lỗi để đối soát. CSV xuất tất cả sensor theo
-              cùng bộ lọc thời gian, tối đa 100.000 dòng.
-            </p>
+            <p className="caption">Mới nhất ở trên. CSV xuất tối đa 100.000 dòng.</p>
             <LoadState
               pending={history.isPending}
               error={history.error}
@@ -400,10 +392,7 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
               </button>
             ) : null}
           </section>
-          <p className="notice">
-            MQ-2/MQ-7 chỉ thống kê tín hiệu ADC; không phải PPM/AQI. Lọc adc_bits chỉ áp dụng thống
-            kê ADC. Mẫu chưa đồng bộ giờ không xuất hiện khi lọc theo thời điểm đo.
-          </p>
+          <p className="notice">MQ-2 và MQ-7 chỉ thống kê tín hiệu ADC, không phải ppm.</p>
         </>
       )}
     </>

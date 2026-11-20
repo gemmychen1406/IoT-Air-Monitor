@@ -88,10 +88,6 @@ export default function MonitoringChart({ deviceId }: { deviceId: string }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="caption">
-        Thời điểm đo nếu đã đồng bộ; mẫu chưa đồng bộ dùng thời điểm server nhận. Khoảng trống biểu
-        thị dữ liệu thiếu.
-      </p>
     </>
   );
 }

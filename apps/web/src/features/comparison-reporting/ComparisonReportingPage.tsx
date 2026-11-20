@@ -121,10 +121,7 @@ export default function ComparisonReportingPage({
       ) : null}
       {tab === "saved" ? (
         <section className="cr-section">
-          <div className="notice">
-            Cấu hình chỉ được lưu trên trình duyệt này, theo tài khoản đang đăng
-            nhập; không tự đồng bộ sang thiết bị khác.
-          </div>
+          <div className="notice">Cấu hình chỉ lưu trên trình duyệt này.</div>
           {saved.length ? (
             <div className="cr-saved">
               {saved.map((value) => (

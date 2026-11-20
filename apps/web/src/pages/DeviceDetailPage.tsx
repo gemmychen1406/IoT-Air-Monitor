@@ -10,7 +10,10 @@ function Metadata({ device, admin }: { device: DeviceView; admin: boolean }) {
   const client = useQueryClient();
   const edit = useMutation({
     mutationFn: (input: object) =>
-      api(`/devices/${device.id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+      api(`/devices/${device.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
     onSuccess: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['device', device.id] }),
@@ -101,8 +104,7 @@ function Metadata({ device, admin }: { device: DeviceView; admin: boolean }) {
         </p>
       ) : null}
       <p className="caption">
-        Lưu trữ giữ nguyên dữ liệu, sự cố và keys nhưng chặn liên lạc của thiết bị. Khôi phục cho
-        phép các key chưa hết hạn/thu hồi hoạt động lại; không tắt cơ chế cảnh báo cục bộ.
+        Thiết bị lưu trữ sẽ ngừng gửi dữ liệu. Bạn có thể khôi phục lại sau.
       </p>
       <LoadState error={edit.error} />
       {edit.isSuccess ? (
@@ -168,10 +170,7 @@ function Credentials({ device }: { device: DeviceView }) {
   return (
     <section className="panel feature-section">
       <h2>Quản lý key</h2>
-      <p className="caption">
-        Key mới chỉ hiển thị một lần. Rotation tạo key mới và rút hạn key cũ về cửa sổ chuyển tiếp;
-        không tự gửi secret xuống thiết bị. Thu hồi có hiệu lực ngay.
-      </p>
+      <p className="caption">Khóa mới chỉ hiển thị một lần, hãy lưu lại ngay.</p>
       {issued ? <IssuedKey issued={issued} close={() => setIssued(null)} /> : null}
       <form className="inline-form" onSubmit={submit}>
         <label>
@@ -324,10 +323,7 @@ function Configuration({ device, admin }: { device: DeviceView; admin: boolean }
             </span>
           </div>
           {data.applied_version !== data.desired.version ? (
-            <p className="notice">
-              Đang chờ thiết bị tải và xác nhận cấu hình. Lưu trên web không có nghĩa firmware đã áp
-              dụng.
-            </p>
+            <p className="notice">Đang chờ thiết bị áp dụng cấu hình mới.</p>
           ) : null}
           <form onSubmit={submit} className="inline-form" key={data.desired.version}>
             <label>
@@ -349,11 +345,7 @@ function Configuration({ device, admin }: { device: DeviceView; admin: boolean }
               </button>
             ) : null}
           </form>
-          <p className="caption">
-            Chỉ cấu hình chu kỳ truyền 1–60 giây. Không cung cấp lệnh tắt còi, đổi heater hoặc tự
-            đặt ngưỡng nguy hiểm gas/CO. Mỗi lần lưu tạo version bất biến; thay đổi đồng thời bị
-            phát hiện bằng expected_version.
-          </p>
+          <p className="caption">Chỉ chỉnh được chu kỳ gửi dữ liệu (1–60 giây).</p>
           <h3>Lịch sử phiên bản</h3>
           <div className="table-wrap">
             <table>
@@ -426,7 +418,7 @@ export default function DeviceDetailPage({ user }: { user: UserView }) {
       {device.data ? (
         <>
           <PageTitle title={device.data.name}>
-            <p>Metadata, credentials, cấu hình và kết nối.</p>
+            <p>Thông tin, khóa kết nối và cấu hình của thiết bị.</p>
           </PageTitle>
           <Metadata device={device.data} admin={user.role === 'admin'} />
           {user.role === 'admin' ? <Credentials device={device.data} /> : null}

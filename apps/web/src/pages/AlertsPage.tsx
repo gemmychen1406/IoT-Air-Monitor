@@ -31,10 +31,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
   return (
     <>
       <PageTitle title="Cảnh báo & sự cố">
-        <p>
-          Lịch sử có bắt đầu/kết thúc và xác nhận độc lập. Mất Internet hoặc acknowledge không đóng
-          sự cố.
-        </p>
+        <p>Lịch sử sự cố gas, CO và lửa.</p>
       </PageTitle>
       <form className="panel filter-grid" onSubmit={submit}>
         <label>
@@ -150,10 +147,6 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
           Tải thêm sự cố
         </button>
       ) : null}
-      <p className="caption">
-        Nguồn snapshot chỉ phát hiện các chuyển trạng thái đã quan sát. Event có ID ổn định giúp
-        khôi phục sự cố ngắn xảy ra khi offline. Không diễn giải mức độ thành nồng độ khí.
-      </p>
     </>
   );
 }

@@ -241,16 +241,11 @@ select:focus {
   flex-direction: column;
   position: fixed;
   height: 100vh;
+  overflow-y: auto;
   background: var(--bg);
 }
 .sidebar .brand {
   margin: 0 10px 44px;
-}
-.sidebar-label {
-  margin: 0 12px 16px;
-  font-size: 9px;
-  letter-spacing: 1.3px;
-  color: var(--muted);
 }
 nav {
   display: flex;
@@ -276,23 +271,6 @@ nav a:hover {
   color: var(--text);
   background: #64748b12;
 }
-.sidebar-bottom {
-  margin-top: auto;
-  padding: 20px 10px 0;
-  border-top: 1px solid var(--border);
-}
-.sidebar-bottom p {
-  color: var(--muted);
-  font-size: 11px;
-  margin: 12px 0 0;
-}
-.local-tag {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--accent);
-}
 .workspace {
   margin-left: 238px;
   width: calc(100% - 238px);
@@ -305,14 +283,11 @@ nav a:hover {
   justify-content: flex-end;
   padding: 0 34px;
   gap: 15px;
-}
-.breadcrumb {
-  font-size: 12px;
-  color: var(--muted);
-}
-.breadcrumb span {
-  margin: 0 12px;
-  color: #52627a;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
 }
 .topbar-actions {
   display: flex;
@@ -720,25 +695,6 @@ footer {
   max-width: 370px;
   margin-bottom: 32px;
 }
-.login-feature {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  margin-bottom: 18px;
-  font-size: 13px;
-}
-.login-feature svg {
-  color: var(--accent);
-}
-.research-note {
-  font-size: 11px;
-  color: var(--muted);
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-  margin-top: 50px;
-  max-width: 370px;
-  line-height: 1.7;
-}
 .login-form-area {
   display: flex;
   align-items: center;
@@ -780,9 +736,6 @@ footer {
   .content {
     padding: 28px 22px 0;
   }
-  .breadcrumb {
-    display: none;
-  }
   .topbar-actions {
     margin-left: auto;
   }
@@ -802,10 +755,6 @@ footer {
   .sidebar .brand {
     margin: 0 0 18px;
     font-size: 20px;
-  }
-  .sidebar-label,
-  .sidebar-bottom {
-    display: none;
   }
   nav {
     flex-direction: row;
@@ -897,10 +846,6 @@ footer {
   .login-brand h1 {
     font-size: 30px;
     margin-bottom: 12px;
-  }
-  .login-feature,
-  .research-note {
-    display: none;
   }
   .login-brand > p {
     margin-bottom: 0;

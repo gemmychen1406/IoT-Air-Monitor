@@ -7,7 +7,11 @@ import { api } from '../lib/api.js';
 import { PageTitle, LoadState, dateText } from '../components/FeatureUI.js';
 import { IssuedKey, type IssuedCredential } from '../components/IssuedKey.js';
 
-const statusText = { online: 'Online', offline: 'Offline', never_seen: 'Chưa kết nối' };
+const statusText = {
+  online: 'Online',
+  offline: 'Offline',
+  never_seen: 'Chưa kết nối',
+};
 export default function DevicesPage({ devices, user }: { devices: DeviceView[]; user: UserView }) {
   const client = useQueryClient();
   const [showArchived, setShowArchived] = useState(false);
@@ -38,17 +42,17 @@ export default function DevicesPage({ devices, user }: { devices: DeviceView[]; 
     const form = e.currentTarget;
     const data = new FormData(form);
     create.mutate(
-      { name: String(data.get('name')), source_kind: String(data.get('source_kind')) },
+      {
+        name: String(data.get('name')),
+        source_kind: String(data.get('source_kind')),
+      },
       { onSuccess: () => form.reset() },
     );
   }
   return (
     <>
       <PageTitle title="Thiết bị">
-        <p>
-          Metadata, credentials, cấu hình có version và lịch sử kết nối. Source chỉ định lúc đăng
-          ký, không đổi nhãn dữ liệu cũ.
-        </p>
+        <p>Danh sách thiết bị và khóa kết nối.</p>
       </PageTitle>
       {user.role === 'admin' ? (
         <form className="panel inline-form" onSubmit={submit}>
