@@ -63,14 +63,21 @@ try {
   await page
     .getByRole("button", { name: "Mô phỏng phân bố", exact: true })
     .click();
+  const initialStep = Number(
+    (await page.locator(".dd-figure figcaption").innerText()).match(
+      /(\d+) bước tính/,
+    )[1],
+  );
   await page.getByRole("button", { name: "Bắt đầu", exact: true }).click();
   await page.waitForFunction(
-    () =>
+    (initial) =>
       Number(
         document
           .querySelector(".dd-figure figcaption")
           ?.textContent?.match(/(\d+) bước tính/)?.[1] ?? 0,
-      ) >= 120,
+      ) >=
+      initial + 8,
+    initialStep,
   );
   await page.getByRole("button", { name: "Tạm dừng", exact: true }).click();
   assert.ok(
@@ -88,6 +95,27 @@ try {
   await page
     .getByRole("button", { name: "Từ tín hiệu cảm biến", exact: true })
     .click();
+  await page
+    .getByLabel("Nguồn dữ liệu", { exact: true })
+    .selectOption("example");
+  await page.getByRole("button", { name: "Xem bộ số đo mẫu" }).click();
+  const samples = page.getByRole("table", { name: "Số đo dùng tạo bề mặt minh họa" });
+  assert.equal(await samples.locator("tbody tr").count(), 6);
+  assert.match(await samples.locator("tbody tr").first().innerText(), /10\.3/);
+  await page.getByLabel("Cảm biến", { exact: true }).selectOption("mq7");
+  await page.getByRole("button", { name: "Xem bộ số đo mẫu" }).click();
+  assert.match(await samples.locator("tbody tr").first().innerText(), /8\.8/);
+  const map = page.getByRole("button", { name: /Chọn điểm trên bản đồ/ });
+  await map.focus();
+  await map.press("ArrowRight");
+  assert.match(await page.locator(".dd-probe-readout").innerText(), /X 51%/);
+  const contours = page.getByLabel("Viền các vùng");
+  await contours.uncheck();
+  await contours.check();
+  await page.locator(".dd-distribution").evaluate(el => window.scrollBy(0, el.getBoundingClientRect().top - 74));
+  await page
+    .locator(".dd-distribution")
+    .screenshot({ path: ".local/screenshots/distribution-example.png" });
   await page
     .getByLabel("Nguồn dữ liệu", { exact: true })
     .selectOption("simulator");
@@ -113,7 +141,11 @@ try {
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished)));
+  await page.evaluate(() =>
+    Promise.all(
+      document.getAnimations().map((animation) => animation.finished),
+    ),
+  );
   await page.screenshot({
     path: ".local/screenshots/diagnostics-mobile.png",
     fullPage: true,
