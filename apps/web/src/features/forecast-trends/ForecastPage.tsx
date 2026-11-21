@@ -12,12 +12,13 @@ import { FORECAST_CONFIG as CFG } from './config.js';
 import { fetchForecastHistory, type HistoryResponse } from './history.js';
 import { evaluateDhtAssessment } from './dhtAdvisory.js';
 import { analyzeTrend } from './timeseries.js';
-import { forecastBoth } from './forecasting.js';
+import { forecastMeasure } from './forecasting.js';
+import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './modelSelection.js';
 import { evaluateAdvisory } from './advisory.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
 import { PredictionChart } from './ForecastCharts.js';
 import ForecastDhtChart from './ForecastDhtChart.js';
-import type { ForecastModel, MinuteReading, TrendResult } from './types.js';
+import type { MinuteReading, TrendResult } from './types.js';
 import { stationDisplayName } from './stationDisplay.js';
 import { SpreadScenarioPanel } from './SpreadScenarioPanel.js';
 import { classifySpreadRoom } from './spreadForecast.js';
@@ -33,8 +34,11 @@ const trendNames = {
   increasing: 'Đang tăng', decreasing: 'Đang giảm', stable: 'Ổn định',
   insufficient: 'Chưa đủ dữ liệu', stale: 'Dữ liệu cũ',
 };
-const models: { id: ForecastModel; label: string }[] = [
-  { id: 'naive', label: 'Naive' }, { id: 'linear', label: 'Hồi quy tuyến tính' }, { id: 'holt', label: 'Holt' },
+const models: { id: ForecastSelection; label: string }[] = [
+  { id: 'auto', label: 'Tự động (Khuyên dùng)' },
+  { id: 'naive', label: MODEL_LABELS.naive },
+  { id: 'linear', label: MODEL_LABELS.linear },
+  { id: 'holt', label: MODEL_LABELS.holt },
 ];
 const fmt = (value: number | null | undefined, digits = 1) => value === null || value === undefined ? '—' : value.toLocaleString('vi-VN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const fmtTime = (time: number | null | undefined) => time === null || time === undefined ? 'Chưa có' : new Date(time).toLocaleString('vi-VN');
@@ -59,7 +63,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [tab, setTab] = useState<Tab>('trend');
   const [selectedId, setSelectedId] = useState('');
   const [roomSelection, setRoomSelection] = useState<string[]>([]);
-  const [model, setModel] = useState<ForecastModel>('holt');
+  const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -100,7 +104,15 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const dataStale = latestSampleAt !== null && latestSampleAt !== undefined && nowMs - latestSampleAt > CFG.staleAfterMs;
   const temperatureTrend = useMemo(() => analyzeTrend(points, 'temperature', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
-  const forecast = useMemo(() => forecastBoth(points, model, horizon, nowMs, latestSampleAt), [points, model, horizon, nowMs, latestSampleAt]);
+  // Mỗi chỉ số có thể được chọn thuật toán khác nhau trên cùng mốc dự báo.
+  const selection = useMemo(() => ({
+    temperature: selectForecastModel(points, 'temperature', horizon, nowMs, latestSampleAt, model),
+    humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model),
+  }), [points, model, horizon, nowMs, latestSampleAt]);
+  const forecast = useMemo(() => ({
+    temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt),
+    humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt),
+  }), [points, selection, horizon, nowMs, latestSampleAt]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
   const dhtAssessment = useMemo(() => evaluateDhtAssessment(points, nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const spreadStations = roomIds.flatMap((id) => {
@@ -181,7 +193,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
         </> : null}
         {tab === 'forecast' ? <>
           <section className="panel ft-controls"><label>Mô hình dự báo
-            <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastModel)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+            <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastSelection)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
           </label><label>Khoảng dự báo
             <select value={horizon} onChange={(e: ChangeEvent<HTMLSelectElement>) => setHorizon(Number(e.target.value) as 15 | 30)}><option value={15}>15 phút</option><option value={30}>30 phút</option></select>
           </label><div className="ft-controls-caption">Dự báo tính từ mẫu đo mới nhất khi thiết bị đang cập nhật. Mốc 15/30 phút được tính sau mẫu đó, không phải kết quả đã đo.</div></section>
@@ -190,10 +202,13 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
           <div className="ft-two-cards">
             {(['temperature', 'humidity'] as const).map((metric) => {
               const forecastItem = forecast[metric];
+              const chosen = selection[metric];
               const last = forecastItem.points.at(-1);
               const unit = metric === 'temperature' ? '°C' : '%RH';
               return <article key={metric} className="ft-metric"><div className="ft-metric-heading"><span>{metric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'} dự kiến</span><span className="ft-forecast-tag">Sau {horizon} phút</span></div>
                 <div className="ft-big-number">{fmt(last?.value)} <small>{unit}</small></div>
+                <p className="ft-model-caption"><strong>Đang dùng: {MODEL_LABELS[chosen.model]}</strong></p>
+                <p className="ft-model-caption">{chosen.explanation}</p>
                 {forecastItem.status === 'eligible' && last
                   ? <div className="ft-metric-bottom"><span>Thay đổi dự kiến: {forecastItem.current !== null ? `${last.value - forecastItem.current >= 0 ? '+' : ''}${fmt(last.value - forecastItem.current)} ${unit}` : '—'}</span><span>Mốc đo đầu: {fmtTime(forecastItem.lastSampleAt)}</span></div>
                   : <p className="ft-warning">{forecastItem.reason ?? 'Chưa đủ dữ liệu.'}</p>}

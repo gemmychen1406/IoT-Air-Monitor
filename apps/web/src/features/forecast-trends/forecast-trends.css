@@ -275,3 +275,7 @@
 .ft-dht-assessment-insufficient { border-left: 3px solid #94a3b8; }
 .ft-dht-assessment-normal { border-left: 3px solid var(--accent); }
 .ft-dht-assessment-watch { border-left: 3px solid #f59e0b; }
+
+/* Explain the independently selected model below each prediction card. */
+.ft-model-caption { margin: 0.3rem 0 0; color: var(--text-muted, var(--muted)); font-size: 0.85rem; line-height: 1.45; }
+.ft-model-caption strong { color: var(--text, inherit); font-weight: 650; }
