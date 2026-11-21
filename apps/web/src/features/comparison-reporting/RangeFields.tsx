@@ -1,5 +1,5 @@
 import type { RangeInput } from "./types.js";
-import { localDateTime } from "./utils.js";
+import { endOfCurrentMinute, localDateTime } from "./utils.js";
 
 export function RangeFields({
   value,
@@ -15,7 +15,7 @@ export function RangeFields({
     else from.setDate(from.getDate() - days);
     onChange({
       from: localDateTime(from),
-      to: localDateTime(to),
+      to: localDateTime(endOfCurrentMinute(to)),
       bucket: days >= 30 ? "day" : days >= 7 ? "hour" : value.bucket,
     });
   }

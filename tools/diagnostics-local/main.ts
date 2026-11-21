@@ -9,6 +9,7 @@ import { createServer as netServer } from "node:net";
 const root = resolve(import.meta.dirname, "../..");
 process.chdir(root);
 const testing = process.argv.includes("--test");
+const browserTest = process.argv.includes("--browser");
 async function availablePort(preferred = 0): Promise<number> {
   return new Promise<number>((yes, no) => {
     const server = netServer();
@@ -25,15 +26,19 @@ async function availablePort(preferred = 0): Promise<number> {
   });
 }
 const port = await availablePort(testing ? 0 : 55432);
+const apiPort = await availablePort(browserTest ? 0 : 4000);
+const webPort = await availablePort(browserTest ? 0 : 5173);
+const apiOrigin = `http://127.0.0.1:${apiPort}`;
+const webOrigin = `http://127.0.0.1:${webPort}`;
 const folder = resolve(
   root,
   ".local",
-  testing ? `diagnostics-tests/run-${Date.now()}` : "diagnostics-preview",
+  testing || browserTest ? `diagnostics-tests/run-${Date.now()}` : "diagnostics-preview",
 );
 if (process.platform === "win32")
   process.env.PATH = `${resolve(root, "node_modules/@embedded-postgres/windows-x64/native/bin")};${process.env.SystemRoot ?? "C:\\Windows"}\\System32;${process.env.PATH ?? ""}`;
 await mkdir(folder, { recursive: true });
-for (const p of testing ? [port] : [port, 4000, 5173]) {
+for (const p of testing ? [port] : [port, apiPort, webPort]) {
   await new Promise<void>((yes, no) => {
     const server = netServer();
     server.once("error", () =>
@@ -132,7 +137,10 @@ const env = {
   ...process.env,
   DATABASE_URL: url,
   TEST_DATABASE_URL: url,
-  WEB_ORIGIN: "http://127.0.0.1:5173",
+  TEST_ALERT_DELIVERY_DATABASE_URL: url + "_delivery",
+  TEST_ENVIRONMENT_DATABASE_URL: url + "_environment",
+  TEST_MULTI_DEVICE_DATABASE_URL: url + "_multi",
+  WEB_ORIGIN: webOrigin,
   TELEGRAM_ENABLED: "false",
   WEB_PUSH_ENABLED: "false",
 };
@@ -198,6 +206,15 @@ try {
   }
   await run("node_modules/prisma/build/index.js", ["migrate", "deploy"]);
   if (testing) {
+    const admin = postgres.getPgClient("postgres", "127.0.0.1");
+    await admin.connect();
+    try {
+      for (const suffix of ["delivery", "environment", "multi"]) {
+        await admin.query(`CREATE DATABASE "${dbName}_${suffix}" TEMPLATE "${dbName}"`);
+      }
+    } finally {
+      await admin.end();
+    }
     // A new database per run: no reset, drop or mutation of previous test/preview databases.
     console.log(
       "Chạy bộ kiểm thử với PostgreSQL thật. Loại trừ backup.test.ts vì kiểm thử cũ này bắt buộc Docker.",
@@ -218,12 +235,15 @@ try {
     await seedDemo(db, credentials.email, credentials.password);
     const runtime = createRuntime(db, env.WEB_ORIGIN, { secureCookies: false });
     await new Promise<void>((yes) =>
-      runtime.http.listen(4000, "127.0.0.1", yes),
+      runtime.http.listen(apiPort, "127.0.0.1", yes),
     );
     const vite = await createServer({
       configFile: resolve(root, "apps/web/vite.config.ts"),
       root: resolve(root, "apps/web"),
-      server: { host: "127.0.0.1" },
+      server: {
+        host: "127.0.0.1", port: webPort,
+        proxy: { "/api": apiOrigin, "/socket.io": { target: apiOrigin, ws: true } },
+      },
     });
     await vite.listen();
     let ticking = false;
@@ -249,8 +269,15 @@ try {
       await new Promise<void>((yes) => runtime.io.close(() => yes()));
       await db.$disconnect();
     };
-    console.log(
-      `\nAirGuard local đã sẵn sàng: http://127.0.0.1:5173/app/device-diagnostics\nEmail: ${credentials.email}\nMật khẩu local: ${credentials.password}\n6 thiết bị mô phỏng, có dữ liệu trong 1 giờ gần nhất.\nDatabase riêng trong .local; không dùng .env hoặc gửi thông báo.\nCtrl+C để dừng. Khởi chạy lại sẽ làm mới dữ liệu demo.\n`,
+    if (browserTest) {
+      const ready = await fetch(new URL("/health/ready", apiOrigin));
+      if (!ready.ok || (await ready.json()).data.status !== "ready")
+        throw new Error("API chưa xác nhận kết nối PostgreSQL.");
+      const { checkSystem } = await import("./browser.js");
+      await checkSystem(db, credentials, webOrigin);
+      await shutdown();
+    } else console.log(
+      `\nAirGuard local đã sẵn sàng: ${webOrigin}/app/device-diagnostics\nAPI: ${apiOrigin}\nEmail: ${credentials.email}\nMật khẩu local: ${credentials.password}\n6 thiết bị mô phỏng, có dữ liệu trong 1 giờ gần nhất.\nDatabase riêng trong .local; không dùng .env hoặc gửi thông báo.\nCtrl+C để dừng. Khởi chạy lại sẽ làm mới dữ liệu demo.\n`,
     );
   }
 } catch (e) {

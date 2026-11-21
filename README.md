@@ -1,6 +1,6 @@
 # AirGuard · Bản tích hợp để review
 
-Nhánh bàn giao `integration/phuong-airguard` đã ghép phần của Phương lên `origin/main` tại `5e2703b`. Nhánh nguồn là `feature/airguard-spaces-notifications`. Để review, checkout nhánh bàn giao và chạy `git diff --stat 5e2703b...HEAD`. Các README dưới đây nối phần web, API, dữ liệu và test của từng chức năng.
+Bản tích hợp toàn hệ thống dùng nhánh `integration/airguard-full-system` trên nền `d47bb85`. Xem [hướng dẫn chạy, kết quả nghiệm thu và cấu hình triển khai](docs/BAN_GIAO_HE_THONG.md). Các README dưới đây mô tả từng module.
 
 | Chức năng | Tài liệu tích hợp |
 | --- | --- |

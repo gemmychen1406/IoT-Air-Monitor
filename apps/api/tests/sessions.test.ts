@@ -72,7 +72,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('persistent HttpOnly sessions', 
       .set('Cookie', cookie)
       .set(webHeaders);
     expect(logout.status).toBe(204);
-    expect(logout.headers['set-cookie']?.[0]).toContain('iot_session=;');
+    expect(logout.headers['set-cookie']).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^iot_session=;/),
+      expect.stringMatching(/^airguard_push_browser=;/),
+    ]));
     expect((await request(app).get('/api/v1/auth/session').set('Cookie', cookie)).status).toBe(401);
   });
   it('refuses expired sessions even if a browser keeps sending its cookie', async () => {

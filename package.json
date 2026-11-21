@@ -15,9 +15,8 @@
     "diagnostics:test": "npm run db:generate && tsx tools/diagnostics-local/main.ts --test",
     "dev": "concurrently -n api,web \"npm run dev -w @iot/api\" \"npm run dev -w @iot/web\"",
     "test": "vitest run",
-    "test:integration": "tsx tests/run-integration.ts",
-    "test:e2e": "tsx tests/run-integration.ts --browser",
-    "test:load": "tsx tests/run-integration.ts --load",
+    "test:integration": "npm run diagnostics:test",
+    "test:e2e": "npm run db:generate && tsx tools/diagnostics-local/main.ts --browser",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -37,7 +36,7 @@
     "cloud:api:start": "tsx apps/api/src/server.ts",
     "cloud:admin:create": "tsx apps/api/src/scripts/create-admin.ts",
     "cloud:simulator": "tsx tools/device-simulator/src/main.ts",
-    "cloud:config:check": "node --test tests/cloud-config.test.mjs"
+    "cloud:config:check": "vitest run apps/api/tests/config.test.ts apps/api/tests/origin.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

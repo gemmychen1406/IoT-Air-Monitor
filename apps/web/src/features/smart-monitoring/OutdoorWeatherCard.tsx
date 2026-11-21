@@ -22,8 +22,11 @@ export default function OutdoorWeatherCard({ device }: { device?: DeviceView }) 
   if (!weather) return null;
 
   const reading = device?.latest?.payload;
-  const inTemp = reading?.sensors.dht11.temperature_c ?? 26;
-  const inHum = reading?.sensors.dht11.humidity_pct ?? 65;
+  const inTemp = reading?.sensors.dht11.temperature_c;
+  const inHum = reading?.sensors.dht11.humidity_pct;
+  if (inTemp == null || inHum == null || reading?.sensors.dht11.quality !== 'valid') {
+    return <div className="panel outdoor-weather-card">Chờ số đo DHT11 hợp lệ để so sánh với thời tiết ngoài trời.</div>;
+  }
 
   const tempDiff = Math.round((inTemp - weather.temperature) * 10) / 10;
   const humDiff = inHum - weather.humidity;

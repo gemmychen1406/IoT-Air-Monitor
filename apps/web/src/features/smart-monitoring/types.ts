@@ -81,3 +81,12 @@ export interface HourlyCompliance {
 export interface SmartMonitoringProps {
   devices: DeviceView[];
 }
+
+export interface VentilationGuide {
+  timeWindow: string;
+  actionType: 'open_window' | 'dehumidify' | 'exhaust_fan' | 'ac_ventilation';
+  title: string;
+  recommendation: string;
+  reason: string;
+  isReferenceOnly: boolean;
+}

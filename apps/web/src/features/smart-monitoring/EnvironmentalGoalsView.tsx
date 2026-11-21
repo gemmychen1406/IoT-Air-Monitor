@@ -351,7 +351,7 @@ export default function EnvironmentalGoalsView({ devices }: { devices: DeviceVie
       <OutdoorWeatherCard device={selectedDevice} />
 
       {/* 4. Trung tâm điều khiển thiết bị ảo IoT (Smart Actuator Controls) */}
-      <SmartActuatorControls device={selectedDevice} />
+      <SmartActuatorControls key={selectedDevice.id} device={selectedDevice} />
 
       {/* 5. Biểu đồ tiến độ đạt chuẩn 24 giờ (Hourly Compliance Timeline) */}
       <HourlyTimelineView device={selectedDevice} />

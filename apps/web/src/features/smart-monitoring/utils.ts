@@ -347,7 +347,7 @@ export function generateSmartRecommendations(
         suggestedAction: 'Kích hoạt quạt hút tầng hầm 100% công suất, mở cửa thoát hiểm.',
         createdAt: new Date().toISOString(),
       });
-    } else if (mq7 > 1100 && (device.name.includes('Hầm') || device.location.includes('hầm'))) {
+    } else if (mq7 > 1100 && (device.name.includes('Hầm') || device.location?.includes('hầm'))) {
       recommendations.push({
         id: `rec-mq7-garage-${device.id}`,
         deviceId: device.id,
@@ -424,6 +424,14 @@ export function generateSmartRecommendations(
   return recommendations;
 }
 
+export const defaultActuators: SmartActuatorState = {
+  exhaustFan: false,
+  dehumidifier: false,
+  smartWindow: false,
+  autoPilot: true,
+  fanSpeed: 2,
+};
+
 export function loadActuators(): Record<string, SmartActuatorState> {
   try {
     const raw = localStorage.getItem(ACTUATORS_STORAGE_KEY);
@@ -436,11 +444,7 @@ export function saveActuator(deviceId: string, state: Partial<SmartActuatorState
   try {
     const all = loadActuators();
     all[deviceId] = {
-      exhaustFan: false,
-      dehumidifier: false,
-      smartWindow: false,
-      autoPilot: true,
-      ...(all[deviceId] ?? {}),
+      ...(all[deviceId] ?? defaultActuators),
       ...state,
     };
     localStorage.setItem(ACTUATORS_STORAGE_KEY, JSON.stringify(all));

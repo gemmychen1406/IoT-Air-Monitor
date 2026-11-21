@@ -8,7 +8,8 @@ export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
   const { deviceId } = useParams();
   const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState('');
-  const selected = devices.find((d) => d.id === (deviceId ?? selectedId)) ?? devices[0];
+  const selected = deviceId ? devices.find((d) => d.id === deviceId)
+    : devices.find((d) => d.id === selectedId) ?? devices[0];
   return (
     <>
       <div className="page-title">
@@ -51,7 +52,7 @@ export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
         </>
       ) : (
         <div className="empty">
-          <h3>Chưa có thiết bị</h3>
+          <h3>{deviceId ? 'Không tìm thấy thiết bị đã chọn' : 'Chưa có thiết bị'}</h3>
           <Link to="/app/devices">Thêm thiết bị</Link>
         </div>
       )}

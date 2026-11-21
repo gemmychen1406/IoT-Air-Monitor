@@ -1,41 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { DeviceView } from '@iot/contracts';
 import { Fan, Droplets, Sliders, Zap, CheckCircle2, Bot } from 'lucide-react';
 import type { SmartActuatorState } from './types.js';
-import { loadActuators, saveActuator } from './utils.js';
+import { defaultActuators, loadActuators, saveActuator } from './utils.js';
 
-export default function SmartActuatorControls({ device }: { device?: DeviceView }) {
-  if (!device) return null;
-
-  const [actuators, setActuators] = useState<SmartActuatorState>(() => {
-    const all = loadActuators();
-    return (
-      all[device.id] ?? {
-        exhaustFan: false,
-        dehumidifier: false,
-        smartWindow: false,
-        autoPilot: true,
-        fanSpeed: 2,
-      }
-    );
-  });
-
+export default function SmartActuatorControls({ device }: { device: DeviceView }) {
+  const [actuators, setActuators] = useState<SmartActuatorState>(
+    () => loadActuators()[device.id] ?? defaultActuators,
+  );
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    const all = loadActuators();
-    setActuators(
-      all[device.id] ?? {
-        exhaustFan: false,
-        dehumidifier: false,
-        smartWindow: false,
-        autoPilot: true,
-        fanSpeed: 2,
-      },
-    );
-  }, [device.id]);
-
-  function toggleSwitch(key: keyof SmartActuatorState) {
+  function toggleSwitch(key: Exclude<keyof SmartActuatorState, 'fanSpeed'>) {
     const nextVal = !actuators[key];
     const updated = { ...actuators, [key]: nextVal };
     setActuators(updated);

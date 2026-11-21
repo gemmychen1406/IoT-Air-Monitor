@@ -17,8 +17,13 @@ export function localDateTime(date: Date) {
     .slice(0, 16);
 }
 
+export function endOfCurrentMinute(now = new Date()) {
+  // The API excludes the end instant. Include readings received in the current minute.
+  return new Date((Math.floor(now.getTime() / 60_000) + 1) * 60_000);
+}
+
 export function defaultRange(hours = 24): RangeInput {
-  const to = new Date();
+  const to = endOfCurrentMinute();
   return {
     from: localDateTime(new Date(to.getTime() - hours * 3_600_000)),
     to: localDateTime(to),

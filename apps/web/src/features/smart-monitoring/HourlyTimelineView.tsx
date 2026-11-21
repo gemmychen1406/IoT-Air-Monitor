@@ -15,16 +15,16 @@ export default function HourlyTimelineView({ device }: { device?: DeviceView }) 
       <div className="timeline-header">
         <div className="t-header-title">
           <CalendarRange size={18} color="var(--accent)" />
-          <h4>Tiến độ Đạt chuẩn & Xu hướng Môi trường 24 Giờ</h4>
+          <h4>Mô phỏng mức đạt chuẩn theo giờ</h4>
         </div>
         <div className="t-stat-pill">
-          <span>Tỷ lệ đạt chuẩn 24h:</span>
+          <span>Tỷ lệ trong mô phỏng:</span>
           <strong>{compliancePct}%</strong>
         </div>
       </div>
 
       <p className="muted t-desc">
-        Chia dữ liệu thành các khoảng thời gian cố định trong ngày, đánh giá mức độ đạt tiêu chuẩn vi khí hậu tại {device?.name ?? 'trạm đo'}.
+        Các khung giờ minh họa kịch bản theo loại phòng của {device?.name ?? 'trạm đo'}. Xem số đo đã ghi trong mục Phân tích & lịch sử.
       </p>
 
       {/* Dãy 12 khối khung giờ */}
