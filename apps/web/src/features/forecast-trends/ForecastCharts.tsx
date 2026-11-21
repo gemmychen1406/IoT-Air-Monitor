@@ -78,8 +78,8 @@ export function PredictionChart({ points, metric, result, replay = false }: {
   );
 }
 
-const roomColors = ['#f59e0b', '#38bdf8', '#a78bfa', '#34d399'];
-/** Same minute timeline for up to four rooms, using only histories passed by caller. */
+const roomColors = ['#f59e0b', '#38bdf8', '#a78bfa', '#34d399', '#fb7185', '#f472b6', '#22d3ee', '#c084fc', '#84cc16'];
+/** Same minute timeline for up to nine stations, using only histories passed by caller. */
 export function RoomComparisonChart({ rooms, metric }: {
   rooms: readonly { id: string; name: string; points: readonly MinuteReading[] }[];
   metric: Measure;
@@ -101,7 +101,7 @@ export function RoomComparisonChart({ rooms, metric }: {
   const hi = Math.max(...validValues);
   const pad = metric === 'temperature' ? Math.max(2, (hi - lo) * 0.2) : Math.max(6, (hi - lo) * 0.2);
   const domain: [number, number] = [Math.max(metric === 'humidity' ? 0 : -40, Math.floor(lo - pad)), Math.min(metric === 'humidity' ? 100 : 125, Math.ceil(hi + pad))];
-  return <div className="ft-chart ft-chart-large" role="img" aria-label="Biểu đồ nhiều phòng theo cùng mốc thời gian">
+  return <div className={`ft-chart ft-chart-large ${rooms.length > 4 ? 'ft-chart-many' : ''}`} role="img" aria-label="Biểu đồ nhiều trạm theo cùng mốc thời gian">
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={tail} margin={{ top: 12, right: 8, bottom: 6, left: -10 }}>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 6" vertical={false} />

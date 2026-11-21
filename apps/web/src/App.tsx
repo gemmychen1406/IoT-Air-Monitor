@@ -65,7 +65,7 @@ const navigation = [
   {title:'Phân tích',links:[
     {path:'analytics',icon:ChartNoAxesCombined,label:'Phân tích & lịch sử'},
     // [FORECAST - SUA FILE CHUNG] Them muc menu vao nhom Phan tich.
-    {path:'forecast',icon:TrendingUp,label:'Xu hướng & Dự báo'},
+    {path:'forecast',icon:TrendingUp,label:'Giám sát & Dự báo'},
     {path:'comparison-reporting',icon:GitCompareArrows,label:'So sánh & báo cáo'},
   ]},
   {title:'Cấu hình & quản trị',links:[

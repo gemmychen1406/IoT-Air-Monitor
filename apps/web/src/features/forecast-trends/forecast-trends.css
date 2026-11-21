@@ -118,7 +118,7 @@
 .ft-demo-settings > div { flex: 2 1 220px; }
 .ft-demo-settings h2 { margin: 0; }
 .ft-demo-settings label { flex: 1 1 180px; min-width: 160px; }
-.ft-room-grid { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+.ft-room-grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
 .ft-room-card { padding: 21px; gap: 12px; min-height: 190px; }
 .ft-room-values { font-size: clamp(18px,2vw,26px); overflow-wrap: anywhere; }
 .ft-room-values small { font-size: 12px; font-weight: 500; }
@@ -224,3 +224,15 @@
 .ft-notice { border: 1px solid var(--border); border-left: 3px solid #eab665; border-radius: 8px; padding: 12px 14px; font-size: 13px; }
 .ft-notice p { color: var(--muted); margin: 5px 0 0; line-height: 1.6; }
 .ft-dht-notices ul { padding-left: 22px; line-height: 1.8; font-size: 13px; }
+
+/* Compact labels for nine distinct stations; source remains the shared API. */
+.ft-room-options { gap: 11px 18px; }
+.ft-room-options .ft-check { font-size: 13px; }
+.ft-room-top strong { overflow-wrap: anywhere; }
+.ft-door-note { margin-top: 15px; }
+
+.ft-chart-many { height: 450px; }
+@media (max-width: 760px) { .ft-chart-many { height: 390px; } }
+
+.ft-room-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ft-room-actions button { font-size: 12px; padding: 7px 10px; white-space: nowrap; }
