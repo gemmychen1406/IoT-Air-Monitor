@@ -1,0 +1,291 @@
+﻿.ag-incident-page {
+  --incident-warning: #a34d0d;
+  --incident-critical: #ad263c;
+  --incident-success: #147748;
+  display: grid;
+  gap: 20px;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+:root[data-theme="dark"] .ag-incident-page,
+:root:not([data-theme="light"]) .ag-incident-page {
+  --incident-warning: #fbb479;
+  --incident-critical: #fda4af;
+  --incident-success: #79dfb0;
+}
+.ag-incident-page h1 {
+  font-size: clamp(28px, 3vw, 36px);
+  line-height: 1.15;
+  margin: 0 0 12px;
+}
+.ag-incident-page h2 {
+  font-size: 22px;
+  line-height: 1.25;
+  margin-bottom: 16px;
+}
+.ag-incident-page h3 {
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+.ag-incident-page :where(p, button, label, textarea, summary, input) {
+  font-size: 16px;
+}
+.ag-incident-page :where(.caption, small, dt) {
+  font-size: 14px;
+}
+.ag-incident-page :where(p, dl, ol, ul) {
+  margin-bottom: 0;
+}
+.ag-incident-page :where(button, summary) {
+  min-height: 44px;
+}
+.ag-incident-page :where(a, button, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.ag-incident-back {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-self: start;
+  min-height: 36px;
+}
+.ag-incident-hero {
+  --incident-tone: var(--incident-warning);
+  padding: 24px;
+  border-inline-start: 4px solid var(--incident-tone);
+  background: color-mix(in srgb, var(--incident-tone) 7%, var(--panel));
+}
+.ag-incident-hero[data-severity="critical"] {
+  --incident-tone: var(--incident-critical);
+}
+.ag-incident-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.ag-incident-symbol {
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  height: 52px;
+  border-radius: 14px;
+  color: var(--incident-tone);
+  background: color-mix(in srgb, var(--incident-tone) 14%, var(--panel));
+}
+.ag-incident-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ag-incident-tag {
+  --tag-tone: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--tag-tone) 38%, var(--border));
+  background: color-mix(in srgb, var(--tag-tone) 9%, var(--panel));
+  color: var(--tag-tone);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.ag-incident-level {
+  --tag-tone: var(--incident-tone);
+}
+.ag-incident-state {
+  --tag-tone: var(--incident-success);
+}
+.ag-incident-state[data-active="true"] {
+  --tag-tone: var(--incident-warning);
+}
+.ag-incident-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.ag-incident-context dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.ag-incident-context dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.ag-incident-columns,
+.ag-incident-actions,
+.ag-incident-history {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  min-width: 0;
+}
+.ag-incident-card,
+.ag-incident-page .ag-incident-support,
+.ag-incident-page .ag-incident-delivery {
+  min-width: 0;
+  margin: 0;
+  padding: 22px;
+  border-radius: 14px;
+}
+.ag-incident-card h2,
+.ag-incident-page .ag-incident-support h2,
+.ag-incident-delivery h2 {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.ag-incident-card h2 svg,
+.ag-incident-page .ag-incident-support h2 svg,
+.ag-incident-delivery h2 svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ag-incident-timeline {
+  list-style: none;
+  padding: 0 0 0 8px;
+  margin: 8px 0 18px;
+}
+.ag-incident-timeline li {
+  position: relative;
+  padding: 0 0 20px 20px;
+  border-left: 1px solid var(--border);
+}
+.ag-incident-timeline li:last-child {
+  padding-bottom: 0;
+  border-color: transparent;
+}
+.ag-incident-timeline li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: -6px;
+  width: 11px;
+  height: 11px;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+}
+.ag-incident-timeline p {
+  margin-top: 4px;
+}
+.ag-incident-timeline p span {
+  color: var(--muted);
+  margin-inline-end: 6px;
+  font-size: 14px;
+}
+.ag-incident-disclosure {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 0 12px;
+  overflow-wrap: anywhere;
+}
+.ag-incident-disclosure[open] {
+  padding-bottom: 12px;
+}
+.ag-incident-disclosure summary {
+  cursor: pointer;
+  padding-block: 10px;
+  font-weight: 600;
+}
+.ag-incident-disclosure p,
+.ag-incident-disclosure ul {
+  margin-top: 6px;
+}
+.ag-incident-step {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.ag-incident-handling .stack-form {
+  max-width: none;
+  align-items: start;
+}
+.ag-incident-handling .stack-form button {
+  justify-self: start;
+}
+.ag-incident-handling [role="status"]:not(.skeleton) {
+  color: var(--incident-success);
+}
+.ag-incident-step .ag-receipt-action button {
+  margin-block: 8px;
+}
+.ag-incident-team {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.ag-incident-team ul {
+  list-style: none;
+  padding: 0;
+}
+.ag-incident-team li {
+  display: grid;
+  gap: 4px;
+  padding-block: 7px;
+}
+.ag-incident-team button {
+  margin-top: 10px;
+}
+.ag-incident-delivery .ag-delivery-list {
+  margin: 0;
+}
+.ag-incident-delivery-entry {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ag-incident-delivery-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.ag-incident-delivery-meta strong {
+  color: var(--text);
+}
+.ag-incident-delivery-meta .caption {
+  margin-inline-start: auto;
+}
+.ag-incident-delivery-entry details {
+  margin-top: 8px;
+}
+.ag-incident-delivery > button {
+  margin-top: 10px;
+}
+@media (min-width: 1060px) {
+  .ag-incident-columns {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+  .ag-incident-actions {
+    grid-area: 1 / 2;
+  }
+  .ag-incident-history {
+    grid-area: 1 / 1;
+  }
+}
+@media (max-width: 560px) {
+  .ag-incident-context {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .ag-incident-symbol {
+    flex-basis: 42px;
+    height: 42px;
+  }
+  .ag-incident-heading {
+    gap: 11px;
+  }
+  .ag-incident-delivery-meta .caption {
+    margin-inline-start: 0;
+  }
+}
+
+.ag-incident-handling .stack-form label,
+.ag-incident-handling .stack-form textarea {
+  width: 100%;
+}

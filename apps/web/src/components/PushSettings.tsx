@@ -1,41 +1,50 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { PushConfigView, PushSubscriptionView } from '@iot/contracts';
-import { api } from '../lib/api.js';
+﻿import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Bell, BellOff, CheckCircle2, Monitor, RefreshCw } from "lucide-react";
+import type { PushConfigView, PushSubscriptionView } from "@iot/contracts";
+import { api } from "../lib/api.js";
 import {
   supportsWebPush,
   browserPushStatus,
   enableBrowserPush,
   disableBrowserPush,
-} from '../lib/web-push.js';
-import { LoadState } from './FeatureUI.js';
-import PushPrivacyPreference from '../features/notification-center/PushPrivacyPreference.js';
+} from "../lib/web-push.js";
+import { LoadState } from "./FeatureUI.js";
 
-export function PushSettings({ devices = [] }: {devices?: {id:string; name:string}[]} = {}) {
+export function PushSettings({
+  devices = [],
+}: { devices?: { id: string; name: string }[] } = {}) {
   const [selectedDevices, setSelectedDevices] = useState<string[]>();
-  const [choice, setChoice] = useState<boolean | undefined>();
+  const [choice, setChoice] = useState<boolean>();
   const supported = supportsWebPush();
   const client = useQueryClient();
   const settings = useQuery({
-    queryKey: ['web-push-settings'],
+    queryKey: ["web-push-settings"],
     queryFn: async () => {
-      const config = await api<PushConfigView>('/push/config');
+      const config = await api<PushConfigView>("/push/config");
       if (!config.enabled) return { config, server: null, local: null };
       const [server, local] = await Promise.all([
-        api<PushSubscriptionView | null>('/push/subscription'),
+        api<PushSubscriptionView | null>("/push/subscription"),
         browserPushStatus(),
       ]);
       return { config, server, local };
     },
   });
-  const includeSimulators = choice ?? settings.data?.server?.include_simulators ?? false;
+  const includeSimulators =
+    choice ?? settings.data?.server?.include_simulators ?? false;
   const deviceIds = selectedDevices ?? settings.data?.server?.device_ids ?? [];
-  const refreshSettings = () => Promise.all([
-    settings.refetch(),
-    client.invalidateQueries({ queryKey: ['environment-settings'] }),
-  ]);
+  const refreshSettings = () =>
+    Promise.all([
+      settings.refetch(),
+      client.invalidateQueries({ queryKey: ["environment-settings"] }),
+    ]);
   const enable = useMutation({
-    mutationFn: () => enableBrowserPush(settings.data!.config.public_key!, includeSimulators, deviceIds),
+    mutationFn: () =>
+      enableBrowserPush(
+        settings.data!.config.public_key!,
+        includeSimulators,
+        deviceIds,
+      ),
     onSuccess: refreshSettings,
   });
   const disable = useMutation({
@@ -48,86 +57,148 @@ export function PushSettings({ devices = [] }: {devices?: {id:string; name:strin
     settings.data.server.endpoint_hash === settings.data.local.endpointHash &&
     settings.data.server.vapid_public_key === settings.data.config.public_key &&
     settings.data.local.publicKey === settings.data.config.public_key;
+  const busy = enable.isPending || disable.isPending;
+  const denied = supported && Notification.permission === "denied";
+
   return (
-    <section className="panel feature-section" aria-label="Web Push">
-      <h2>Thông báo Web Push</h2>
-      <p>
-        Cảnh báo warning/critical trên trình duyệt đã đăng ký; có thể nhận khi đóng tab nếu trình
-        duyệt/hệ điều hành hỗ trợ. Không thay thế còi cục bộ.
-      </p>
+    <section className="panel ag-notification-card" aria-label="Web Push">
+      <div className="ag-notification-card-heading">
+        <span className="ag-notification-icon">
+          <Bell size={22} aria-hidden="true" />
+        </span>
+        <div>
+          <h2>Thông báo Web Push</h2>
+          <p className="caption">Nhận cảnh báo sự cố trên trình duyệt này.</p>
+        </div>
+      </div>
       <LoadState
         pending={settings.isPending}
         error={settings.error ?? enable.error ?? disable.error}
-        retry={() => void settings.refetch()}
+        retry={settings.isError ? () => void settings.refetch() : undefined}
       />
       {!supported ? (
         <p className="notice">
-          Trình duyệt hoặc ngữ cảnh này chưa hỗ trợ Web Push. Dùng HTTPS hoặc localhost trên trình
-          duyệt hỗ trợ; HTTP qua IP LAN không đủ.
+          Trình duyệt hoặc địa chỉ này chưa hỗ trợ Web Push. Hãy mở web bằng
+          HTTPS hoặc localhost trên trình duyệt có hỗ trợ.
         </p>
       ) : null}
       {settings.data && !settings.data.config.enabled ? (
         <p className="notice">
-          Backend chưa bật Web Push. Quản trị viên cần cấu hình VAPID trong .env và khởi động lại
-          API.
+          Backend chưa bật Web Push. Liên hệ quản trị viên để cấu hình VAPID và
+          khởi động lại API.
         </p>
       ) : null}
       {settings.data?.config.enabled && supported ? (
         <>
-          <p role="status">
-            {active
-              ? 'Đang nhận thông báo trên trình duyệt này'
-              : 'Chưa đăng ký nhận thông báo cho trình duyệt này'}
-          </p>
-          {Notification.permission === 'denied' ? (
+          <div className="ag-push-status" data-active={active} role="status">
+            {active ? (
+              <CheckCircle2 size={22} aria-hidden="true" />
+            ) : (
+              <Monitor size={22} aria-hidden="true" />
+            )}
+            <span>
+              {active
+                ? "Đang nhận thông báo trên trình duyệt này"
+                : "Chưa đăng ký nhận thông báo cho trình duyệt này"}
+            </span>
+          </div>
+          {denied ? (
             <p className="notice">
-              Quyền thông báo đang bị chặn. Mở quyền của website trong trình duyệt, cho phép rồi tải
-              lại trang; ứng dụng không thể tự bỏ chặn.
+              Quyền thông báo đang bị chặn. Mở quyền của trang trong trình
+              duyệt, chọn Cho phép rồi tải lại trang.
             </p>
           ) : null}
-          {devices.length > 0 && <details><summary>Thiết bị nhận cảnh báo · {deviceIds.length || 'Tất cả'}</summary>
-            <p>Để trống để nhận từ tất cả thiết bị.</p>{devices.map(d => <label className="check-label" key={d.id}>
-              <input type="checkbox" checked={deviceIds.includes(d.id)} onChange={e => setSelectedDevices(e.target.checked ? [...deviceIds,d.id] : deviceIds.filter(id => id !== d.id))}/>{d.name}
-            </label>)}</details>}
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={includeSimulators}
-              onChange={(e) => setChoice(e.target.checked)}
-            />
-            Nhận cả cảnh báo mô phỏng
-          </label>
-          <div className="button-row">
+          <div className="ag-notification-actions">
             <button
+              type="button"
               className="primary"
-              disabled={
-                enable.isPending || disable.isPending || Notification.permission === 'denied'
-              }
+              disabled={busy || denied}
               onClick={() => enable.mutate()}
             >
-              {active ? 'Lưu tùy chọn Web Push' : 'Bật Web Push'}
+              <Bell size={18} aria-hidden="true" />
+              {enable.isPending
+                ? "Đang lưu…"
+                : active
+                  ? "Lưu tùy chọn"
+                  : "Bật Web Push"}
             </button>
             <button
-              disabled={enable.isPending || disable.isPending}
+              type="button"
+              disabled={busy}
               onClick={() => disable.mutate()}
             >
-              Tắt Web Push
+              <BellOff size={18} aria-hidden="true" />{" "}
+              {disable.isPending ? "Đang tắt…" : "Tắt Web Push"}
             </button>
-            <button onClick={() => void settings.refetch()}>Kiểm tra lại</button>
+            <button
+              type="button"
+              disabled={busy || settings.isFetching}
+              onClick={() => void settings.refetch()}
+            >
+              <RefreshCw size={17} aria-hidden="true" />{" "}
+              {settings.isFetching ? "Đang kiểm tra…" : "Kiểm tra lại"}
+            </button>
           </div>
-          {active ? (
-            <p className="caption">
-              {settings.data.server?.expires_at ? 'Đăng ký cũ theo phiên. Bấm Lưu tùy chọn Web Push để chuyển sang nhận lâu dài.' : 'Vẫn nhận sau khi phiên hết hạn. Tắt Web Push hoặc đăng xuất để ngắt trình duyệt này.'}
-            </p>
-          ) : null}
+          <fieldset className="ag-push-options" disabled={busy}>
+            <legend className="sr-only">Tùy chọn nhận cảnh báo</legend>
+            {devices.length > 0 ? (
+              <details className="ag-notification-disclosure">
+                <summary>
+                  Thiết bị nhận cảnh báo{" "}
+                  <span className="ag-notification-count">
+                    {deviceIds.length || "Tất cả"}
+                  </span>
+                </summary>
+                <p className="caption">Để trống để nhận từ tất cả thiết bị.</p>
+                <div className="ag-push-devices">
+                  {devices.map((device) => (
+                    <label className="check-label" key={device.id}>
+                      <input
+                        type="checkbox"
+                        checked={deviceIds.includes(device.id)}
+                        onChange={(event) =>
+                          setSelectedDevices(
+                            event.target.checked
+                              ? [...deviceIds, device.id]
+                              : deviceIds.filter((id) => id !== device.id),
+                          )
+                        }
+                      />{" "}
+                      {device.name}
+                    </label>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+            <label className="check-label ag-notification-option">
+              <input
+                type="checkbox"
+                checked={includeSimulators}
+                onChange={(event) => setChoice(event.target.checked)}
+              />{" "}
+              Nhận cả cảnh báo mô phỏng
+            </label>
+          </fieldset>
         </>
       ) : null}
-      <PushPrivacyPreference />
-      <p className="caption">
-        Chỉ xin quyền sau khi bạn bấm bật. Mở sự cố từ thông báo vẫn cần đăng nhập. Đổi khóa VAPID cần đăng ký
-        lại. Hệ điều hành có thể chặn/hoãn thông báo; đóng hoàn toàn trình duyệt không bảo đảm nhận
-        được.
-      </p>
+      <details className="ag-notification-disclosure ag-push-help">
+        <summary>Yêu cầu trình duyệt và cách nhận</summary>
+        <p>
+          Cảnh báo mức Warning và Critical có thể đến khi đóng tab nếu trình
+          duyệt và hệ điều hành hỗ trợ. Còi cục bộ vẫn hoạt động theo thiết bị.
+        </p>
+        <p>
+          Trình duyệt chỉ xin quyền khi bạn bấm bật. Đổi khóa VAPID cần đăng ký
+          lại. Bạn cần đăng nhập để mở chi tiết sự cố.
+        </p>
+        {active ? (
+          <p>
+            {settings.data?.server?.expires_at
+              ? "Đăng ký cũ theo phiên. Bấm Lưu tùy chọn để chuyển sang nhận lâu dài."
+              : "Tắt Web Push hoặc đăng xuất để ngắt đăng ký trên trình duyệt này."}
+          </p>
+        ) : null}
+      </details>
     </section>
   );
 }
