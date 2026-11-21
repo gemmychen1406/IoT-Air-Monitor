@@ -7,7 +7,18 @@ import {
   type SimulationOptions,
 } from "./simulation/engine.js";
 import { date, Table } from "./shared.js";
+import { DistributionMap } from "./DistributionMap.js";
 const SIZE = 48;
+const initialSteps = 160;
+const demoSensors = [
+  { name: "Cạnh cửa", x: 0.12, y: 0.18, mq2: 420, mq7: 360 },
+  { name: "Cạnh bàn", x: 0.5, y: 0.24, mq2: 1480, mq7: 850 },
+  { name: "Gần bếp", x: 0.82, y: 0.28, mq2: 3660, mq7: 2640 },
+  { name: "Giữa phòng", x: 0.47, y: 0.58, mq2: 1920, mq7: 1360 },
+  { name: "Cạnh cửa sổ", x: 0.19, y: 0.84, mq2: 660, mq7: 520 },
+  { name: "Góc cuối phòng", x: 0.76, y: 0.79, mq2: 2320, mq7: 1740 },
+];
+
 type Position = { x: number; y: number };
 function readPositions(key: string): Record<string, Position> {
   try {
@@ -39,18 +50,29 @@ export default function SpatialSimulation({
 }) {
   const [mode, setMode] = useState<"scenario" | "sensors">("scenario");
   const [running, setRunning] = useState(false);
-  const [grid, setGrid] = useState<Float32Array>(
-    () => new Float32Array(SIZE * SIZE),
+  const [grid, setGrid] = useState<Float32Array>(() =>
+    evolve(new Float32Array(SIZE * SIZE), {
+      size: SIZE,
+      steps: initialSteps,
+      source: true,
+      ventilation: 0,
+      airflow: 1,
+      x: 0.3,
+      y: 0.55,
+      strength: 85,
+    }),
   );
-  const [steps, setSteps] = useState(0);
+  const [steps, setSteps] = useState(initialSteps);
   const [source, setSource] = useState(true);
   const [ventilation, setVentilation] = useState(0);
-  const [airflow, setAirflow] = useState(0);
+  const [airflow, setAirflow] = useState(1);
   const [sourceX, setSourceX] = useState(0.3);
   const [sourceY, setSourceY] = useState(0.55);
-  const [strength, setStrength] = useState(50);
+  const [strength, setStrength] = useState(85);
   const [metric, setMetric] = useState<"mq2" | "mq7">("mq2");
-  const [kind, setKind] = useState<"physical" | "simulator">("physical");
+  const [kind, setKind] = useState<"physical" | "simulator" | "example">(
+    "physical",
+  );
   const [selected, setSelected] = useState<string[]>([]);
   const [points, setPoints] = useState<Point[]>([]);
   const [snapshot, setSnapshot] = useState<string | null>(null);
@@ -58,7 +80,6 @@ export default function SpatialSimulation({
   const [fallback, setFallback] = useState(false);
   const positionKey = `airguard.diagnostics.positions.v1.${userId}`;
   const [positions, setPositions] = useState(() => readPositions(positionKey));
-  const canvas = useRef<HTMLCanvasElement>(null);
   const worker = useRef<Worker | null>(null);
   const requestId = useRef(0);
   const currentGrid = useRef(grid);
@@ -126,63 +147,6 @@ export default function SpatialSimulation({
     }, 160);
     return () => clearInterval(timer);
   }, [running, mode, source, ventilation, airflow, sourceX, sourceY, strength]);
-  useEffect(() => {
-    const context = canvas.current?.getContext("2d");
-    if (!context) return;
-    const scale = 10;
-    context.clearRect(0, 0, 480, 480);
-    for (let y = 0; y < SIZE; y++)
-      for (let x = 0; x < SIZE; x++) {
-        const v = grid[y * SIZE + x]!;
-        context.fillStyle =
-          v < 0
-            ? "#39465b"
-            : v < 50
-              ? `rgb(${Math.round(22 + v * 1.2)},${Math.round(48 + v * 2.6)},${Math.round(85 + v * 0.8)})`
-              : `rgb(${Math.round(82 + (v - 50) * 3.4)},${Math.round(178 - (v - 50) * 1.2)},${Math.round(125 - (v - 50) * 1.8)})`;
-        context.fillRect(x * scale, y * scale, scale, scale);
-      }
-    context.strokeStyle = "rgba(255,255,255,.2)";
-    context.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      context.beginPath();
-      context.moveTo(i * 120, 0);
-      context.lineTo(i * 120, 480);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(0, i * 120);
-      context.lineTo(480, i * 120);
-      context.stroke();
-    }
-    const markers =
-      mode === "sensors"
-        ? points
-        : [
-            {
-              id: "source",
-              name: source ? "Nguồn đang bật" : "Nguồn đã tắt",
-              x: sourceX,
-              y: sourceY,
-              value: strength,
-            },
-          ];
-    for (const [i, p] of markers.entries()) {
-      const x = Math.max(16, Math.min(464, p.x * 480)),
-        y = Math.max(16, Math.min(464, p.y * 480));
-      context.beginPath();
-      context.arc(x, y, 13, 0, Math.PI * 2);
-      context.fillStyle = "#ffffff";
-      context.fill();
-      context.lineWidth = 2;
-      context.strokeStyle = "#0b101a";
-      context.stroke();
-      context.font = "bold 13px sans-serif";
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillStyle = "#0b101a";
-      context.fillText(mode === "sensors" ? String(i + 1) : "N", x, y);
-    }
-  }, [grid, mode, points, sourceX, sourceY, source, strength]);
   function reset() {
     setRunning(false);
     requestId.current++;
@@ -226,6 +190,7 @@ export default function SpatialSimulation({
     requestId.current++;
     busy.current = false;
     setSnapshot(null);
+    setMessage("");
     setPoints([]);
     const empty = new Float32Array(SIZE * SIZE);
     empty.fill(-1);
@@ -233,6 +198,18 @@ export default function SpatialSimulation({
     currentGrid.current = empty;
   }
   function capture() {
+    if (kind === "example") {
+      const mapped = demoSensors.map((p, i) => ({
+        id: String(i),
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        value: (p[metric] / 4095) * 100,
+      }));
+      showSurface(mapped);
+      setMessage("Đang dùng 6 số đo giả lập 12 bit trong cùng một phòng.");
+      return;
+    }
     const candidates = devices.filter(
       (d) => selected.includes(d.id) && d.source_kind === kind,
     );
@@ -294,9 +271,12 @@ export default function SpatialSimulation({
       );
       return;
     }
+    showSurface(mapped);
+    setMessage("Đã chụp tín hiệu. Bấm Lấy số đo mới để cập nhật bề mặt.");
+  }
+  function showSurface(mapped: Point[]) {
     setPoints(mapped);
     setSnapshot(new Date().toISOString());
-    setMessage("Đã chụp tín hiệu. Bấm Lấy số đo mới để cập nhật bề mặt.");
     activeSteps.current = 0;
     if (worker.current)
       worker.current.postMessage({
@@ -346,37 +326,35 @@ export default function SpatialSimulation({
       </div>
       <div className="dd-spatial-layout">
         <div>
-          <figure className="dd-figure">
-            <canvas
-              ref={canvas}
-              width={480}
-              height={480}
-              role="img"
-              aria-label={
-                mode === "scenario"
-                  ? `Mô phỏng ${steps} bước; tín hiệu trung bình ${mean?.toFixed(1) ?? "chưa có"} trên thang 0–100. Điểm N là nguồn minh họa. Chi tiết ở phần thông số và bảng bên dưới.`
-                  : "Bề mặt nội suy tín hiệu cảm biến; các điểm có số tương ứng bảng số đo bên dưới, vùng xám chưa đủ điểm gần."
-              }
-            />
-            <figcaption>
-              {mode === "scenario"
-                ? `Kịch bản minh họa · ${steps} bước tính · N: nguồn`
+          <DistributionMap
+            grid={grid}
+            size={SIZE}
+            scenario={mode === "scenario"}
+            airflow={airflow}
+            sensorName={metric === "mq2" ? "MQ-2" : "MQ-7"}
+            points={
+              mode === "sensors"
+                ? points
+                : [
+                    {
+                      id: "source",
+                      name: "Nguồn minh họa",
+                      x: sourceX,
+                      y: sourceY,
+                      value: strength,
+                    },
+                  ]
+            }
+            caption={
+              mode === "scenario"
+                ? `Kịch bản minh họa · ${steps} bước tính`
                 : snapshot
-                  ? `Ảnh chụp tín hiệu lúc ${date(snapshot)}`
-                  : "Chọn thiết bị và lấy số đo để tạo bề mặt."}
-            </figcaption>
-          </figure>
-          <div className="dd-legend">
-            <span>0 · Thấp</span>
-            <span>50</span>
-            <span>100 · Cao</span>
-          </div>
-          <p className="dd-muted">
-            Thang tương đối 0–100
-            {mode === "sensors"
-              ? "% toàn thang ADC; xám: chưa đủ điểm gần."
-              : "; không có đơn vị nồng độ hoặc thời gian thực."}
-          </p>
+                  ? kind === "example"
+                    ? "Bộ số đo mẫu · 6 điểm trong một phòng minh họa"
+                    : `Ảnh chụp tín hiệu lúc ${date(snapshot)}`
+                  : "Chọn nguồn dữ liệu để tạo bản đồ."
+            }
+          />
           <p aria-live="polite">
             {running
               ? "Đang chạy mô phỏng."
@@ -392,7 +370,7 @@ export default function SpatialSimulation({
             <>
               <h3>Thử từng bước</h3>
               <ol>
-                <li>Bấm Bắt đầu để quan sát nguồn tạo tín hiệu.</li>
+                <li>Bấm Bắt đầu để xem tín hiệu tiếp tục lan từ điểm Nguồn.</li>
                 <li>Tắt nguồn, rồi tăng thông gió để xem tín hiệu giảm.</li>
                 <li>Đổi hướng luồng khí và so sánh vùng tín hiệu.</li>
               </ol>
@@ -493,79 +471,101 @@ export default function SpatialSimulation({
                   aria-label="Nguồn dữ liệu"
                   value={kind}
                   onChange={(e) => {
-                    setKind(e.target.value as "physical" | "simulator");
+                    setKind(
+                      e.target.value as "physical" | "simulator" | "example",
+                    );
                     setSelected([]);
                     clearSnapshot();
                   }}
                 >
                   <option value="physical">Thiết bị thật</option>
                   <option value="simulator">Thiết bị mô phỏng</option>
+                  <option value="example">Bộ số đo mẫu · 6 điểm</option>
                 </select>
               </label>
-              <p>
-                Chọn 3–8 điểm. Tọa độ chỉ phục vụ thử nghiệm trên lưới, không
-                sửa sơ đồ phòng.
-              </p>
-              {devices.filter((d) => d.source_kind === kind).length ? (
-                devices
-                  .filter((d) => d.source_kind === kind)
-                  .map((d, i) => (
-                    <div className="dd-point-editor" key={d.id}>
-                      <label className="dd-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(d.id)}
-                          onChange={(e) => {
-                            setSelected((ids) =>
-                              e.target.checked
-                                ? [...ids, d.id]
-                                : ids.filter((id) => id !== d.id),
-                            );
-                            clearSnapshot();
-                          }}
-                        />
-                        {d.name}
-                      </label>
-                      {selected.includes(d.id) ? (
-                        <div className="dd-coordinate">
-                          <label>
-                            Ngang (%)
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={Math.round(position(d.id, i).x * 100)}
-                              onChange={(e) => {
-                                if (Number.isFinite(e.target.valueAsNumber))
-                                  move(d.id, "x", e.target.valueAsNumber, i);
-                              }}
-                            />
-                          </label>
-                          <label>
-                            Dọc (%)
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={Math.round(position(d.id, i).y * 100)}
-                              onChange={(e) => {
-                                if (Number.isFinite(e.target.valueAsNumber))
-                                  move(d.id, "y", e.target.valueAsNumber, i);
-                              }}
-                            />
-                          </label>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
-              ) : (
+              {kind === "example" ? (
                 <p>
-                  Chưa có thiết bị thuộc nguồn đã chọn. Bạn có thể thử kịch bản
-                  minh họa.
+                  Sáu vị trí trong một phòng giả định. Các giá trị MQ-2 và MQ-7
+                  được tạo để thử bản đồ.
                 </p>
+              ) : (
+                <>
+                  <p>
+                    Chọn 3–8 điểm. Tọa độ chỉ phục vụ thử nghiệm trên lưới,
+                    không sửa sơ đồ phòng.
+                  </p>
+                  {devices.filter((d) => d.source_kind === kind).length ? (
+                    devices
+                      .filter((d) => d.source_kind === kind)
+                      .map((d, i) => (
+                        <div className="dd-point-editor" key={d.id}>
+                          <label className="dd-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(d.id)}
+                              onChange={(e) => {
+                                setSelected((ids) =>
+                                  e.target.checked
+                                    ? [...ids, d.id]
+                                    : ids.filter((id) => id !== d.id),
+                                );
+                                clearSnapshot();
+                              }}
+                            />
+                            {d.name}
+                          </label>
+                          {selected.includes(d.id) ? (
+                            <div className="dd-coordinate">
+                              <label>
+                                Ngang (%)
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={Math.round(position(d.id, i).x * 100)}
+                                  onChange={(e) => {
+                                    if (Number.isFinite(e.target.valueAsNumber))
+                                      move(
+                                        d.id,
+                                        "x",
+                                        e.target.valueAsNumber,
+                                        i,
+                                      );
+                                  }}
+                                />
+                              </label>
+                              <label>
+                                Dọc (%)
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={Math.round(position(d.id, i).y * 100)}
+                                  onChange={(e) => {
+                                    if (Number.isFinite(e.target.valueAsNumber))
+                                      move(
+                                        d.id,
+                                        "y",
+                                        e.target.valueAsNumber,
+                                        i,
+                                      );
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                  ) : (
+                    <p>
+                      Chưa có thiết bị thuộc nguồn đã chọn. Bạn có thể thử kịch
+                      bản minh họa.
+                    </p>
+                  )}
+                </>
               )}
               <button className="primary" onClick={capture}>
-                Lấy số đo mới
+                {kind === "example" ? "Xem bộ số đo mẫu" : "Lấy số đo mới"}
               </button>
             </>
           )}

@@ -77,9 +77,15 @@ Khoảng cách mẫu dùng uptime trong cùng phiên; không đo trực tiếp k
 
 **Ý nghĩa:** công cụ minh họa để trình diễn mô hình phân bố và quan sát giả định. Không xác định khu vực an toàn, không quy đổi ADC thành nồng độ khí.
 
+Bản đồ dùng tọa độ tương đối với gốc (0%, 0%) ở góc trên trái, X tăng sang phải và Y tăng xuống dưới. Bấm hoặc chạm để đọc giá trị tại một vị trí. Khi bản đồ có tiêu điểm, phím mũi tên dịch 1%, giữ Shift để dịch 10%. Màu kem nhạt đến nâu đậm dùng cùng thang 0–100 trên mọi ảnh. Đường viền đánh dấu các mức 25, 50 và 75. Vùng gạch chéo thiếu dữ liệu. Các vị trí giữa nút lưới được lấy mẫu song tuyến tính khi vẽ và khi đọc điểm.
+
+Để thử ngay, chọn **Từ tín hiệu cảm biến → Nguồn dữ liệu → Bộ số đo mẫu · 6 điểm → Xem bộ số đo mẫu**. Sáu điểm trong cùng một phòng giả định có cặp số ADC MQ-2 và MQ-7 12 bit. Giao diện lấy kênh đã chọn, chia cho 4095 để đổi sang % toàn thang rồi chạy cùng phép nội suy như khi chụp số đo từ thiết bị. Bộ mẫu nằm trong trình duyệt và không ghi vào lịch sử đo.
+
 ### Thử kịch bản
 
-1. Bấm **Bắt đầu**, quan sát nguồn N và tín hiệu tăng quanh nguồn.
+Lần mở đầu hiển thị ảnh dừng ở bước 160 với nguồn bật và gió sang phải để có thể đọc bản đồ ngay.
+
+1. Bấm **Bắt đầu**, quan sát điểm Nguồn và tín hiệu tăng quanh nguồn.
 2. Thử **Luồng khí** sang trái/phải, thay đổi mức nguồn hoặc vị trí nguồn.
 3. Bỏ chọn **Bật nguồn minh họa**, tăng **Thông gió**, tiếp tục quan sát tín hiệu giảm.
 4. **Tạm dừng** để đọc bảng; **Đặt lại** để xóa lưới và bắt đầu lại. Không tự chạy hoạt ảnh khi mở trang.
