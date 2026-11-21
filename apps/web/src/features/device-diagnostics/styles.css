@@ -275,15 +275,6 @@
   font-size: 13px;
   line-height: 1.6;
 }
-.dd-legend {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 16px;
-  margin: 16px 0 8px;
-  font-size: 12px;
-  background: linear-gradient(to right, #163055, #52b27d, #fc7630) top / 100%
-    8px no-repeat;
-}
 .dd-simulation-controls {
   display: flex;
   flex-direction: column;
@@ -387,3 +378,68 @@
     min-height: 44px;
   }
 }
+
+.dd-distribution {
+  padding: clamp(12px, 2vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.dd-distribution header, .dd-probe-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.dd-distribution header span, .dd-distribution small, .dd-axis-note, .dd-axis-title {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dd-axis-title {margin: 20px 0 26px 32px;}
+.dd-axis-note {margin: 10px 0 18px 32px;}
+.dd-map-frame {position: relative; margin: 0 12px 0 32px;}
+.dd-x-axis span, .dd-y-axis span {
+  position: absolute;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dd-x-axis span {top: -20px; transform: translateX(-50%);}
+.dd-y-axis span {right: calc(100% + 6px); transform: translateY(-50%);}
+.dd-map-frame .dd-map-surface {
+  display: block;
+  position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  cursor: crosshair;
+  isolation: isolate;
+}
+.dd-map-surface:focus-visible {outline: 3px solid currentColor; outline-offset: 3px;}
+.dd-map-surface canvas {display:block; width: 100%; border: none; border-radius: 0;}
+.dd-map-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(to right, #56463844 1px, transparent 1px), linear-gradient(to bottom, #56463844 1px, transparent 1px);
+  background-size: 25% 25%;
+  box-shadow: inset 0 0 0 1px #56463844;
+}
+.dd-map-marker, .dd-map-probe {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border-radius: 50%;
+}
+.dd-map-marker {
+  font-size: 12px; font-weight: 700; line-height: 20px;
+  width: 22px; height: 22px; background: white; color: #142540;
+  text-align: center; border: 1px solid #142540;
+}
+.dd-map-probe {width: 12px; height: 12px; border: 2px solid white; box-shadow: 0 0 0 1px #15243b; }
+.dd-scale-title {font-size: 13px; font-weight: 600;}
+.dd-color-scale {height: 10px; border-radius: 3px; margin-top: 7px;}
+.dd-scale-ticks {display: flex; justify-content: space-between; font-size: 12px; margin-top: 3px;}
+.dd-probe-readout {margin: 14px 0 5px; border-top: 1px solid var(--border); padding-top: 12px; font-size: 13px; font-variant-numeric: tabular-nums;}
+
+.dd-distribution .dd-map-intro {margin: 10px 0; line-height: 1.55;}
+.dd-distribution .dd-map-reading {margin: 0 0 14px; padding-inline-start: 10px; border-inline-start: 3px solid #dc7c2d; font-weight: 600;}
+.dd-map-marker.dd-source-label {width: auto; padding-inline: 4px; border-radius: 5px;}
