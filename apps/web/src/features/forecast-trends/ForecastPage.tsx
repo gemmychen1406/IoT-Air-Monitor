@@ -10,13 +10,13 @@ import { latestDhtSnapshot } from './latestDht.js';
 import { formatSensorValue } from '../../lib/sensor-display.js';
 import { FORECAST_CONFIG as CFG } from './config.js';
 import { fetchForecastHistory, type HistoryResponse } from './history.js';
-import { evaluateDhtChange } from './dhtAdvisory.js';
+import { evaluateDhtAssessment } from './dhtAdvisory.js';
 import { analyzeTrend } from './timeseries.js';
 import { forecastBoth } from './forecasting.js';
 import { evaluateAdvisory } from './advisory.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
 import { PredictionChart } from './ForecastCharts.js';
-import MonitoringChart from '../../pages/MonitoringChart.js';
+import ForecastDhtChart from './ForecastDhtChart.js';
 import type { ForecastModel, MinuteReading, TrendResult } from './types.js';
 import { stationDisplayName } from './stationDisplay.js';
 import { SpreadScenarioPanel } from './SpreadScenarioPanel.js';
@@ -102,7 +102,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const forecast = useMemo(() => forecastBoth(points, model, horizon, nowMs, latestSampleAt), [points, model, horizon, nowMs, latestSampleAt]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
-  const dhtNotices = useMemo(() => evaluateDhtChange(points, nowMs), [points, nowMs]);
+  const dhtAssessment = useMemo(() => evaluateDhtAssessment(points, nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const spreadStations = roomIds.flatMap((id) => {
     const device = activeDevices.find((d) => d.id === id);
     if (!device) return [];
@@ -157,13 +157,26 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
           </div>
           <MoistureIndicators temperature={live?.temperature ?? null} humidity={live?.humidity ?? null} />
           <section className="panel ft-dht-notices"><div className="ft-section-bar"><h2><Activity size={19}/> Nhận định biến động nhiệt độ và độ ẩm</h2></div>
-            {dhtNotices.length ? <div className="ft-notice-list">{dhtNotices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title.replace(' nhanh', ' liên tục')}</strong><p>{notice.detail}</p></div>)}</div> : <p className="ft-muted">Chưa ghi nhận biến động liên tục vượt mức theo dõi, hoặc chưa đủ mẫu để đánh giá.</p>}
+            <div role="status" className={`ft-dht-assessment ft-dht-assessment-${dhtAssessment.status}`}>
+              <strong>{dhtAssessment.status === 'stale' ? 'Dữ liệu cũ'
+                : dhtAssessment.status === 'insufficient' ? 'Chưa đủ mẫu'
+                : dhtAssessment.status === 'normal' ? 'Không có biến động bất thường'
+                : 'Có biến động liên tục cần theo dõi'}</strong>
+              <p>{dhtAssessment.status === 'stale'
+                ? 'Thiết bị đã ngừng gửi dữ liệu mới hơn 5 phút; tạm dừng đánh giá biến động hiện tại.'
+                : dhtAssessment.status === 'insufficient'
+                  ? `Chưa đủ dữ liệu liên tục (hiện có ${dhtAssessment.validMinutes}/${dhtAssessment.requiredMinutes} phút hợp lệ) để đánh giá biến động.`
+                  : dhtAssessment.status === 'normal'
+                    ? 'Không ghi nhận biến động bất thường: nhiệt độ và độ ẩm đang duy trì ổn định quanh mức nền.'
+                    : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
+            </div>
+            {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
             <p className="ft-muted">Nhận định được tính từ lịch sử nhiệt độ và độ ẩm; không xác nhận nguyên nhân biến động.</p>
           </section>
           <section className="panel ft-chart-panel ft-wide-panel">
-            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2><p className="ft-muted">120 mẫu gần nhất · biểu đồ dùng chung với Giám sát trực tiếp</p></div>
+            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2><p className="ft-muted">Tối đa 120 mẫu gần nhất · chỉ vẽ DHT11 hợp lệ, đồng bộ; mẫu lỗi để trống</p></div>
             </div>
-            <MonitoringChart deviceId={selected.id} />
+            <ForecastDhtChart deviceId={selected.id} />
           </section>
           {dataStale ? <p className="ft-muted">Biểu đồ và tốc độ biến đổi ở trên phản ánh dữ liệu lịch sử trước khi thiết bị ngừng gửi, không phải trạng thái hiện tại.</p> : null}
         </> : null}
