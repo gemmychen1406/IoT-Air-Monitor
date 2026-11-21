@@ -14,9 +14,9 @@ import {
 import './styles.css';
 
 const TABS = [
-  { id: 'goals', label: 'Mục tiêu & Eco-Score', icon: Target },
-  { id: 'recommendations', label: 'Khuyến nghị tự động', icon: Lightbulb },
-  { id: 'tasks', label: 'Nhắc việc & Kế hoạch', icon: CheckSquare },
+  { id: 'goals', label: 'Mục tiêu Tiện nghi & Eco-Score', icon: Target },
+  { id: 'recommendations', label: 'Khuyến nghị Vi khí hậu', icon: Lightbulb },
+  { id: 'tasks', label: 'Kế hoạch Hành động (Kanban)', icon: CheckSquare },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -41,10 +41,10 @@ export default function SmartMonitoringHub({ devices }: { devices: DeviceView[] 
       {/* Tiêu đề & Thẻ chỉ số tổng hợp */}
       <div className="smart-hub-header">
         <div>
-          <span className="eyebrow">SMART ENVIRONMENTAL MANAGEMENT</span>
+          <span className="eyebrow">SMART HOME COMFORT & ECO-LIVING</span>
           <h1>Giám sát thông minh & Hành động</h1>
           <p className="muted">
-            Thiết lập mục tiêu chất lượng không khí, nhận khuyến nghị tối ưu vi khí hậu và theo dõi kế hoạch nhắc việc.
+            Cá nhân hóa mục tiêu tiện nghi, theo dõi điểm sức khỏe Eco-Score và điều phối kế hoạch hành động tối ưu vi khí hậu.
           </p>
         </div>
 
