@@ -25,7 +25,7 @@ Tài liệu này là yêu cầu triển khai, không phải tuyên bố rằng c
 | Service worker | `apps/web/public/push-sw.js` |
 | Trạng thái thiết bị | `presence.ts`, lịch sử `DeviceStatusHistory` |
 | Sự cố trên web | `apps/web/src/pages/IncidentPage.tsx` |
-| Cụm mở rộng đã có | `features/airguard-extensions/`, `features/comparison-reporting/` |
+| Cụm mở rộng đã có | `features/comparison-reporting/` |
 
 Các nguyên tắc nghiệp vụ hiện có phải giữ:
 

@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { BarChart3, FileDown, GitCompareArrows, Save } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  FileDown,
+  GitCompareArrows,
+  Save,
+} from "lucide-react";
 import type { DeviceView, UserView } from "@iot/contracts";
+import { AnomalyDetection } from "./AnomalyDetection.js";
 import { DeviceComparison } from "./DeviceComparison.js";
 import { PeriodComparison } from "./PeriodComparison.js";
 import { ReportBuilder } from "./ReportBuilder.js";
@@ -12,6 +19,7 @@ const TABS = [
   ["devices", "So sánh thiết bị", GitCompareArrows],
   ["period", "So sánh giai đoạn", BarChart3],
   ["report", "Báo cáo môi trường", FileDown],
+  ["anomaly", "Biến động bất thường", Activity],
   ["saved", "Cấu hình đã lưu", Save],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -118,6 +126,9 @@ export default function ComparisonReportingPage({
           initial={applied}
           onSave={add}
         />
+      ) : null}
+      {devices.length && tab === "anomaly" ? (
+        <AnomalyDetection devices={devices} isAdmin={user.role === "admin"} />
       ) : null}
       {tab === "saved" ? (
         <section className="cr-section">
