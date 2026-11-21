@@ -171,10 +171,9 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
                     : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
             </div>
             {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
-            <p className="ft-muted">Nhận định được tính từ lịch sử nhiệt độ và độ ẩm; không xác nhận nguyên nhân biến động.</p>
           </section>
           <section className="panel ft-chart-panel ft-wide-panel">
-            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2><p className="ft-muted">Tối đa 120 mẫu gần nhất · chỉ vẽ DHT11 hợp lệ, đồng bộ; mẫu lỗi để trống</p></div>
+            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2></div>
             </div>
             <ForecastDhtChart deviceId={selected.id} />
           </section>
