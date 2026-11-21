@@ -74,6 +74,7 @@ export default function DevicesPage({ devices, user }: { devices: DeviceView[]; 
         </form>
       ) : null}
       <LoadState error={create.error ?? issue.error} />
+      {create.isSuccess ? <p className="notice" role="status">Đã tạo thiết bị ở trạng thái chưa gán phòng. <Link to="/app/spaces">Mở Khu vực và phòng</Link></p> : null}
       {issued ? <IssuedKey issued={issued} close={() => setIssued(null)} /> : null}
       <label className="check-label">
         <input

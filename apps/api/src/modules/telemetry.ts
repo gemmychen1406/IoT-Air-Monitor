@@ -16,9 +16,10 @@ export function readingView(row: SensorReading): ReadingView {
 }
 
 export async function listDevices(
-  db: Database,
+  db: Pick<Database, 'device' | 'sensorReading'>,
   archived = 'false',
   id?: string,
+  areaId?: string,
 ): Promise<DeviceView[]> {
   const devices = await db.device.findMany({
     where: {
@@ -27,9 +28,10 @@ export async function listDevices(
         : archived === 'all'
           ? {}
           : { archivedAt: archived === 'true' ? { not: null } : null }),
+      ...(areaId ? { roomAssignment: { room: { areaId } } } : {}),
     },
     orderBy: { createdAt: 'asc' },
-    take: 100,
+    take: areaId ? undefined : 100,
   });
   const ids = devices.flatMap((d) => (d.latestId === null ? [] : [d.latestId]));
   const readings = await db.sensorReading.findMany({ where: { id: { in: ids } } });

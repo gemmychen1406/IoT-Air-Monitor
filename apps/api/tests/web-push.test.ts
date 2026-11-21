@@ -219,7 +219,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         ).status,
       ).toBe(409);
     });
-    it('does not send queued notifications once the owning session has expired', async () => {
+    it('does not send legacy session-bound jobs once their session has expired', async () => {
       expect(
         (await request(app).post('/api/v1/push/subscription').set(f.headers.admin!).send(input))
           .status,
@@ -252,6 +252,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(
         (await db.webPushDelivery.findFirstOrThrow({ where: { subscriptionId: sub.id } })).status,
       ).toBe('skipped');
+    });
+    it('keeps a browser eligible after timeout, then revokes its subscription on account change', async () => {
+      const register = await request(app).post('/api/v1/push/subscription').set(f.headers.operator!)
+        .send({...input,persistent:true,device_ids:[f.deviceId],subscription:{...subscription,endpoint:subscription.endpoint+'-durable'}});
+      expect(register.status).toBe(200);
+      const sub = await db.webPushSubscription.findUniqueOrThrow({where:{id:register.body.data.id}});
+      const incident = await db.alertIncident.findFirstOrThrow({where:{deviceId:f.deviceId}});
+      const otherId = (await db.device.create({data:{name:'Filter target',sourceKind:'simulator'}})).id;
+      const scoped = {...input,persistent:true,subscription:{...subscription,endpoint:sub.endpoint},device_ids:[otherId]};
+      await request(app).post('/api/v1/push/subscription').set(f.headers.operator!).send(scoped).expect(200);
+      await db.$transaction(tx => webPushNotifier()(tx,incident));
+      expect(await db.webPushDelivery.count({where:{subscriptionId:sub.id}})).toBe(0);
+      const updated = await request(app).post('/api/v1/push/subscription').set(f.headers.operator!)
+        .send({...scoped,device_ids:[f.deviceId]}).expect(200);
+      const currentCookie = updated.headers['set-cookie']![0]!.split(';')[0]!;
+      await db.session.update({where:{id:sub.sessionId},data:{expiresAt:new Date(0)}});
+      await (await import('../src/modules/maintenance.js')).runMaintenance(db,{apply:true});
+      expect((await request(app).get('/api/v1/alerts/incidents').set(f.headers.operator!)).status).toBe(401);
+      await db.$transaction(tx => webPushNotifier()(tx,incident));
+      let calls = 0;
+      await deliverWebPush(db,config,async () => { calls++; return {ok:true}; });
+      expect(calls).toBe(1);
+      const password = randomUUID();
+      const email = randomUUID()+'@test.local';
+      await db.user.create({data:{email,passwordHash:await (await import('argon2')).hash(password)}});
+      expect((await request(app).post('/api/v1/auth/login').set('Cookie',currentCookie).set('X-Requested-With','AirGuard')
+        .send({email,password})).status).toBe(200);
+      expect(await db.webPushSubscription.findUnique({where:{id:sub.id}})).toBeNull();
+      expect(await db.alertDelivery.count({where:{targetId:sub.id, status:'sent'}})).toBe(1);
     });
   },
 );

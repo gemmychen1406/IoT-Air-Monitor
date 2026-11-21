@@ -1,0 +1,44 @@
+.ag-contact-admin, .ag-contact-fields, .ag-support-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+.ag-contact-fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+.ag-contact-list { margin: 0; list-style: none; }
+.ag-incident-support .ag-contact-list { padding: 0; }
+.ag-contact-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.ag-contact-list p { margin: 0.25rem 0; }
+.ag-support-actions { width: min(100%, 18rem); }
+.notice.ag-incident-notice {
+  --accent: #e78424;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+  border-inline-start: 4px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+.notice.ag-incident-notice[data-severity='critical'] { --accent: #e64b55; }
+.notice.ag-incident-notice:has(a:hover), .notice.ag-incident-notice:focus-within {
+  background: color-mix(in srgb, gray 16%, var(--panel));
+}
+.ag-incident-notice-summary {
+  flex: 1;
+  min-width: 0;
+  padding: .8rem 1rem;
+  display: grid;
+  align-content: center;
+  gap: .25rem;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+.ag-incident-notice-summary strong { font-size: 17px; }
+.ag-incident-notice button { align-self: center; margin-inline-end: .75rem; min-height: 44px; }

@@ -1,7 +1,10 @@
+import { scheduleCriticalReminders } from './alert-delivery/reminders.js';
 import type { Database } from '@iot/database';
 import type { AlertIncident, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { sendTelegram, type TelegramResult, type TelegramConfig } from './telegram-client.js';
+import { incidentWebLink, telegramMessage } from './alert-delivery/message.js';
+import type { EnvironmentDeliveryHooks } from './environment/delivery.js';
 export type AlertNotifier = (
   tx: Prisma.TransactionClient,
   incident: AlertIncident,
@@ -13,7 +16,7 @@ export function telegramNotifier(includeSimulators: boolean): AlertNotifier {
     if (device.sourceKind === 'simulator' && !includeSimulators) return;
     const now = new Date();
     await tx.telegramNotification.upsert({
-      where: { incidentId_severity: { incidentId: incident.id, severity: incident.severity } },
+      where: { incidentId_severity_round: { incidentId: incident.id, severity: incident.severity, round: 0 } },
       create: {
         incidentId: incident.id,
         severity: incident.severity,
@@ -28,9 +31,12 @@ export function telegramNotifier(includeSimulators: boolean): AlertNotifier {
 
 export async function deliverTelegramNotification(
   db: Database,
-  send: (text: string) => Promise<TelegramResult>,
+  send: (text: string, link?: string | null) => Promise<TelegramResult>,
   now = new Date(),
   includeSimulators = true,
+  webOrigin?: string,
+  quietUntil?: EnvironmentDeliveryHooks['quietUntil'],
+  readTimezone?: () => Promise<string>,
 ) {
   const leaseToken = randomUUID();
   const row = await db.$transaction(async (tx) => {
@@ -58,11 +64,19 @@ export async function deliverTelegramNotification(
       where: { ...idle, attempts: { gte: 8 }, expiresAt: { gt: now } },
       data: { status: 'failed', leaseToken: null, leaseUntil: null, lastErrorCode: 'MAX_ATTEMPTS' },
     });
-    const [candidate] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM telegram_notifications
+    const [candidate] = await tx.$queryRaw<{ id: string; severity: string }[]>`SELECT id, severity FROM telegram_notifications
       WHERE attempts < 8 AND expires_at > ${now} AND
       ((status = 'pending' AND next_attempt_at <= ${now}) OR (status = 'sending' AND lease_until <= ${now}))
       ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED`;
     if (!candidate) return null;
+    const quiet = await quietUntil?.(tx, null, candidate.severity, now);
+    if (quiet) {
+      await tx.telegramNotification.update({
+        where: { id: candidate.id },
+        data: { status: 'pending', nextAttemptAt: quiet, leaseToken: null, leaseUntil: null, lastErrorCode: 'QUIET_HOURS' },
+      });
+      return { deferred: candidate.id };
+    }
     return tx.telegramNotification.update({
       where: { id: candidate.id },
       data: {
@@ -75,38 +89,57 @@ export async function deliverTelegramNotification(
     });
   });
   if (!row) return { processed: false as const };
-  const incident = row.incident;
-  const device = incident.device;
-  const condition =
-    { gas: 'Gas (MQ-2)', co: 'CO (MQ-7)', flame: 'Flame' }[incident.condition] ??
-    incident.condition;
-  const text = [
-    `${row.severity === 'critical' ? '🔴 CRITICAL' : '🟠 WARNING'} · AirGuard`,
-    device.sourceKind === 'simulator'
-      ? '⚠️ MÔ PHỎNG — KHÔNG PHẢI SỐ ĐO PHẦN CỨNG'
-      : 'Nguồn: thiết bị phần cứng (trạng thái do thiết bị báo)',
-    `Thiết bị: ${device.name}`,
-    `Device ID: ${device.id}`,
-    ...(device.location ? [`Vị trí: ${device.location}`] : []),
-    `Điều kiện: ${condition}`,
-    `Sự cố: ${incident.id}`,
-    `Bắt đầu (UTC): ${incident.startedAt?.toISOString() ?? 'Chưa xác định'}`,
-    `Server quan sát (UTC): ${incident.firstObservedAt.toISOString()}`,
-    `Trạng thái khi chuẩn bị gửi: ${incident.status === 'ended' ? 'ĐÃ KẾT THÚC — thông báo sự kiện lịch sử' : 'CHƯA KẾT THÚC (không khẳng định trạng thái hiện tại nếu mất kết nối)'}`,
-    ...(incident.severity !== row.severity
-      ? [`Mức mới nhất trên server: ${incident.severity.toUpperCase()}`]
-      : []),
-    'Gas/CO chưa quy đổi PPM/AQI. Xác nhận trên web không tắt còi.',
-    'Telegram phụ thuộc mạng, không thay thế cảnh báo cục bộ/hệ thống an toàn đạt chứng nhận.',
-  ].join('\n');
+  if ('deferred' in row)
+    return { processed: true as const, status: 'pending', notificationId: row.deferred, cooldownMs: 1000, code: 'QUIET_HOURS' };
+  const snapshot = await db.alertDelivery.findUnique({
+    where: { channel_jobId: { channel: 'telegram', jobId: row.id } },
+    select: { deviceName: true, location: true, locationSource: true },
+  });
+  const text = telegramMessage(row.severity, row.incident, row.incident.device, snapshot, webOrigin, await readTimezone?.(), row.round);
+  const quiet = await quietUntil?.(db, null, row.severity, new Date(Math.max(now.getTime(), Date.now())));
+  const owner = { id: row.id, status: 'sending', leaseToken };
+  const current = row.round > 0
+    ? (await db.$queryRaw<{expiresAt:Date;leaseUntil:Date|null;stoppedReminder:boolean}[]>`
+        SELECT d.expires_at AS "expiresAt", d.lease_until AS "leaseUntil",
+          (i.status <> 'active' OR i.severity <> 'critical' OR EXISTS
+            (SELECT 1 FROM alert_receipts r WHERE r.incident_id = i.id)) AS "stoppedReminder"
+        FROM telegram_notifications d JOIN alert_incidents i ON i.id = d.incident_id
+        WHERE d.id=${row.id}::uuid AND d.status='sending' AND d.lease_token=${leaseToken}::uuid
+      `)[0]
+    : await db.telegramNotification.findFirst({where:owner, select:{expiresAt:true,leaseUntil:true}});
+  const checkedAt = new Date(Math.max(now.getTime(), Date.now()));
+  const outcome = { processed: true as const, notificationId: row.id, cooldownMs: 1000 };
+  if (!current?.leaseUntil || current.leaseUntil <= checkedAt)
+    return { ...outcome, status: 'lease_lost', code: null };
+  if (current.expiresAt <= checkedAt) {
+    const expired = await db.telegramNotification.updateMany({
+      where: { ...owner, leaseUntil: { gt: checkedAt }, expiresAt: { lte: checkedAt } },
+      data: { status: 'expired', leaseToken: null, leaseUntil: null, lastErrorCode: 'DELIVERY_EXPIRED' },
+    });
+    return expired.count
+      ? { ...outcome, status: 'expired', code: 'DELIVERY_EXPIRED' }
+      : { ...outcome, status: 'lease_lost', code: null };
+  }
+  if ('stoppedReminder' in current && current.stoppedReminder) {
+    const skipped = await db.telegramNotification.updateMany({where:{...owner,leaseUntil:{gt:checkedAt}},
+      data:{status:'skipped',leaseUntil:null,leaseToken:null,lastErrorCode:'REMINDER_STOPPED'}});
+    return {...outcome,status:skipped.count ? 'skipped' : 'lease_lost',code:'REMINDER_STOPPED'};
+  }
+  if (quiet && quiet > checkedAt) {
+    const deferred = await db.telegramNotification.updateMany({
+      where: { ...owner, leaseUntil: { gt: checkedAt } },
+      data: { status: 'pending', nextAttemptAt: quiet, leaseToken: null, leaseUntil: null, lastErrorCode: 'QUIET_HOURS' },
+    });
+    return { ...outcome, status: deferred.count ? 'pending' : 'lease_lost', code: 'QUIET_HOURS' };
+  }
   let result: TelegramResult;
   try {
-    result = await send(text);
+    result = await send(text, incidentWebLink(webOrigin,row.incidentId));
   } catch {
     result = { ok: false, retryable: true, code: 'TELEGRAM_NETWORK_ERROR' };
   }
   const finishedAt = new Date(Math.max(now.getTime(), Date.now()));
-  const expired = row.expiresAt <= finishedAt;
+  const expired = current.expiresAt <= finishedAt;
   const status = result.ok
     ? 'sent'
     : expired
@@ -122,7 +155,7 @@ export async function deliverTelegramNotification(
       );
   const code = result.ok ? null : result.code;
   const updated = await db.telegramNotification.updateMany({
-    where: { id: row.id, status: 'sending', leaseToken },
+    where: { ...owner, leaseUntil: { gt: finishedAt } },
     data: {
       status,
       leaseToken: null,
@@ -145,7 +178,11 @@ export function startTelegramWorker(
   db: Database,
   config: TelegramConfig,
   log: (entry: { notification_id?: string; status?: string; code?: string | null }) => void,
+  webOrigin?: string,
+  environment?: EnvironmentDeliveryHooks,
+  reminderSeconds = 300,
 ) {
+  let nextSchedule = 0;
   let stopped = false;
   let pauseUntil = 0;
   let active: Promise<void> | undefined;
@@ -154,12 +191,23 @@ export function startTelegramWorker(
     if (stopped || active || Date.now() < pauseUntil) return;
     active = (async () => {
       try {
-        const result = await deliverTelegramNotification(
+        if (Date.now() >= nextSchedule) {
+          await scheduleCriticalReminders(db, 'telegram', reminderSeconds);
+          nextSchedule = Date.now() + 5000;
+        }
+        const alert = await deliverTelegramNotification(
           db,
-          (text) => sendTelegram(config, text, fetch, controller.signal),
+          (text,link) => sendTelegram(config, text, fetch, controller.signal,link),
           new Date(),
           config.includeSimulators,
+          webOrigin,
+          environment?.quietUntil,
+          async () => {
+            const policy = await db.environmentPolicy.findUnique({where:{id:'telegram'},select:{config:true}});
+            return (policy?.config as {timezone?:string} | null)?.timezone ?? 'Asia/Ho_Chi_Minh';
+          },
         );
+        const result = !alert.processed && environment ? await environment.idle() : alert;
         if (result.processed) {
           pauseUntil = Date.now() + result.cooldownMs;
           log({ notification_id: result.notificationId, status: result.status, code: result.code });

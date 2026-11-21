@@ -11,12 +11,13 @@ export function matchesSecret(secret: string, expected: string) {
   return actual.length === stored.length && timingSafeEqual(actual, stored);
 }
 export const SESSION_COOKIE = 'iot_session';
-export function sessionCookieToken(cookie: string | undefined) {
+export const BROWSER_COOKIE = 'airguard_push_browser';
+export function sessionCookieToken(cookie: string | undefined, name = SESSION_COOKIE) {
   const value = cookie
     ?.split(';')
     .map((part) => part.trim())
-    .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-    ?.slice(SESSION_COOKIE.length + 1);
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
   return value && /^[A-Za-z0-9_-]{43}$/.test(value) ? value : undefined;
 }
 export async function authenticateUser(

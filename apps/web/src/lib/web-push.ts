@@ -34,7 +34,7 @@ export async function browserPushStatus() {
     publicKey: sub.options.applicationServerKey ? base64(sub.options.applicationServerKey) : null,
   };
 }
-export async function enableBrowserPush(publicKey: string, includeSimulators: boolean) {
+export async function enableBrowserPush(publicKey: string, includeSimulators: boolean, deviceIds: string[] = []) {
   if (!supportsWebPush())
     throw new Error('Web Push cần HTTPS hoặc localhost và trình duyệt có hỗ trợ.');
   const permission =
@@ -83,6 +83,7 @@ export async function enableBrowserPush(publicKey: string, includeSimulators: bo
     await api('/push/subscription', {
       method: 'POST',
       body: JSON.stringify({
+        persistent: true, device_ids: deviceIds,
         subscription: sub.toJSON(),
         application_server_key: publicKey,
         include_simulators: includeSimulators,

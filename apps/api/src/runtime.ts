@@ -7,8 +7,12 @@ import { z } from 'zod';
 import { allowedWebOrigins } from './lib/origins.js';
 import { reconcileOffline } from './modules/presence.js';
 import { telegramNotifier, startTelegramWorker } from './modules/notifications.js';
-import type { TelegramConfig } from './modules/telegram-client.js';
+import { sendTelegram, type TelegramConfig } from './modules/telegram-client.js';
 import { webPushNotifier, startWebPushWorker, type WebPushConfig } from './modules/web-push.js';
+import { sendWebPush } from './modules/web-push-client.js';
+import { alertQuietUntil } from './modules/environment/policy.js';
+import { environmentSender } from './modules/environment/delivery.js';
+import { startEnvironmentScheduler } from './modules/environment/scheduler.js';
 
 export function createRuntime(
   db: Database,
@@ -17,6 +21,7 @@ export function createRuntime(
     onRequest?: (entry: { request_id: string; method: string; status: number }) => void;
     onFailure?: (entry: { request_id: string; code: string }) => void;
     secureCookies?: boolean;
+    reminderSeconds?: number;
     telegram?: TelegramConfig;
     webPush?: WebPushConfig;
     onNotification?: (entry: {
@@ -27,11 +32,16 @@ export function createRuntime(
     }) => void;
   } = {},
 ) {
+  const environment = {
+    telegram: !!logging.telegram, telegramSimulators: logging.telegram?.includeSimulators ?? false,
+    pushPublicKey: logging.webPush?.publicKey,
+  };
   const app = createApp({
     db,
     origin,
     ...logging,
     webPush: logging.webPush,
+    environment,
     notify:
       logging.telegram || logging.webPush
         ? async (tx, incident) => {
@@ -79,6 +89,7 @@ export function createRuntime(
   let timer: ReturnType<typeof setInterval> | undefined;
   let stopWorker: (() => Promise<void>) | undefined;
   let stopPushWorker: (() => Promise<void>) | undefined;
+  let stopEnvironment: (() => Promise<void>) | undefined;
   let reconciling = false;
   async function reconcile() {
     if (reconciling) return;
@@ -92,13 +103,29 @@ export function createRuntime(
     }
   }
   http.on('listening', () => {
-    if (logging.telegram)
-      stopWorker = startTelegramWorker(db, logging.telegram, (entry) =>
-        logging.onNotification?.({ ...entry, channel: 'telegram' }),
+    const telegram = logging.telegram;
+    const webPush = logging.webPush;
+    stopEnvironment = startEnvironmentScheduler(db, environment, () =>
+      logging.onFailure?.({ request_id: 'environment', code: 'ENVIRONMENT_SCHEDULE_FAILED' }),
+    );
+    if (telegram)
+      stopWorker = startTelegramWorker(
+        db,
+        telegram,
+        (entry) => logging.onNotification?.({ ...entry, channel: 'telegram' }),
+        origin,
+        { quietUntil: alertQuietUntil, idle: environmentSender(db, {
+          channel: 'telegram', includeSimulators: telegram.includeSimulators,
+          send: (text) => sendTelegram(telegram, text),
+        }) }, logging.reminderSeconds,
       );
-    if (logging.webPush)
-      stopPushWorker = startWebPushWorker(db, logging.webPush, (entry) =>
+    if (webPush)
+      stopPushWorker = startWebPushWorker(db, webPush, (entry) =>
         logging.onNotification?.({ ...entry, channel: 'webpush' }),
+        { quietUntil: alertQuietUntil, idle: environmentSender(db, {
+          channel: 'webpush', publicKey: webPush.publicKey,
+          send: (target, payload) => sendWebPush(webPush, target, payload),
+        }) }, logging.reminderSeconds,
       );
     timer = setInterval(() => void reconcile(), 5000);
     timer.unref();
@@ -108,6 +135,7 @@ export function createRuntime(
     if (timer) clearInterval(timer);
     void stopWorker?.();
     void stopPushWorker?.();
+    void stopEnvironment?.();
   });
   namespace.use(async (socket, next) => {
     try {
@@ -159,6 +187,7 @@ export function createRuntime(
     http,
     io,
     stopNotifications: async () => {
+      await stopEnvironment?.();
       await stopWorker?.();
       await stopPushWorker?.();
     },

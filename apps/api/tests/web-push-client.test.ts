@@ -65,3 +65,22 @@ it('rejects untrusted endpoints before invoking a network transport', async () =
   expect(attempted).toBe(false);
   expect(result).toMatchObject({ ok: false, retryable: false });
 });
+it('uses a separate stable topic and normal urgency for an environment notice', async () => {
+  const notice = {
+    version: 3, notification_id: payload.incident_id, kind: 'digest',
+    simulator: true, url: '/app/notifications?view=environment',
+  } as const;
+  const topics: (string | undefined)[] = [];
+  for (const body of [notice, notice, payload]) {
+    const result = await sendWebPush(config, target, body, async (_target, json, options) => {
+      topics.push(options?.topic);
+      expect(options?.urgency).toBe(body === payload ? 'high' : 'normal');
+      expect(JSON.parse(String(json))).toEqual(body);
+      return { statusCode: 202, body: '', headers: {} };
+    });
+    expect(result).toEqual({ ok: true });
+  }
+  expect(topics[0]).toBeDefined();
+  expect(topics[0]).toBe(topics[1]);
+  expect(topics[0]).not.toBe(topics[2]);
+});

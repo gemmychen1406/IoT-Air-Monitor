@@ -1,0 +1,25 @@
+.ag-delivery-filters, .ag-delivery-list, .ag-delivery-row {
+  display: grid;
+  gap: 0.85rem;
+}
+.ag-delivery-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  align-items: end;
+  margin-bottom: 1rem;
+}
+.ag-delivery-list { padding: 0; list-style: none; }
+.ag-delivery-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  padding: 1rem 1.25rem;
+  overflow-wrap: anywhere;
+}
+.ag-delivery-row p { margin: 0.3rem 0; }
+.ag-delivery-row summary { cursor: pointer; }
+.ag-environment-form fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ag-environment-form button { margin-top: 1rem; }
+.ag-environment-grid, .ag-environment-devices {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+.ag-environment-form details { margin-block: 1rem; }

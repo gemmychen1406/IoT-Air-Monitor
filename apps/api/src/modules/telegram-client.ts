@@ -6,15 +6,31 @@ export async function sendTelegram(
   text: string,
   request: typeof fetch = fetch,
   signal?: AbortSignal,
+  incidentLink?: string | null,
 ): Promise<TelegramResult> {
   try {
+    const linked = incidentLink && text.endsWith('\n' + incidentLink);
+    const prefix = linked ? text.slice(0, -incidentLink.length) : '';
+    const label = 'Xem sự cố';
     const response = await request(`https://api.telegram.org/bot${config.token}/sendMessage`, {
       method: 'POST',
       redirect: 'error',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: config.chatId,
-        text,
+        text: linked ? prefix + label : text,
+        ...(linked
+          ? {
+              entities: [
+                {
+                  type: 'text_link',
+                  offset: prefix.length,
+                  length: label.length,
+                  url: incidentLink,
+                },
+              ],
+            }
+          : {}),
         link_preview_options: { is_disabled: true },
       }),
       signal: signal

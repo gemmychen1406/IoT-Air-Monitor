@@ -53,3 +53,16 @@ it('never exposes token-bearing URLs or response bodies from network errors', as
   expect(result).toMatchObject({ ok: false, retryable: true });
   expect(JSON.stringify(result)).not.toContain(config.token);
 });
+
+it('makes the incident link clickable without displaying its UUID, including after emoji', async () => {
+  const link='http://127.0.0.1:5173/app/alerts/01234567-89ab-4cde-8123-123456789abc';
+  const result = await sendTelegram(config,'🔥 Phát hiện lửa · NGHIÊM TRỌNG\nThiết bị · Phòng A\n'+link,async (_url,init)=>{
+    const body=JSON.parse(String(init?.body));
+    expect(body.text).not.toContain(link);
+    const entity=body.entities[0];
+    expect(body.text.slice(entity.offset,entity.offset+entity.length)).toBe('Xem sự cố');
+    expect(entity.url).toBe(link);
+    return Response.json({ok:true,result:{message_id:42}});
+  },undefined,link);
+  expect(result).toEqual({ok:true});
+});

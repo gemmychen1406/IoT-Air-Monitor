@@ -8,3 +8,8 @@ coverage/
 playwright-report/
 test-results/
 tmp/
+dist/
+*.tsbuildinfo
+*.log
+*.zip
+*.env

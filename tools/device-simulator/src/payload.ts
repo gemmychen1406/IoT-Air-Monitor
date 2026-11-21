@@ -1,5 +1,6 @@
 import type { Telemetry } from "@iot/contracts";
 import { scenarioState, type Scenario } from "./scenarios.js";
+import type { ReplayValues } from './replay.js';
 
 export function buildPayload(options: {
   deviceId: string;
@@ -8,6 +9,7 @@ export function buildPayload(options: {
   seq: string;
   uptime: number;
   now: Date;
+  sample?: ReplayValues;
   scenario?: Scenario;
   scenarioSample?: number;
   durationSamples?: number;
@@ -41,6 +43,8 @@ export function buildPayload(options: {
     age_ms: 0,
     concentration_ppm: null,
   });
+  const flame = options.sample ? options.sample.flame === 'active' : state.flame;
+  const wave = Math.sin(Number(BigInt(options.seq) % 100n) / 10);
   const gasActive =
     ["gas", "fire", "combined", "danger"].includes(scenario) && state.alert;
   const coActive =
@@ -65,30 +69,30 @@ export function buildPayload(options: {
         config_version: 1,
         sensors: {
           dht11: {
-            temperature_c: state.temperatureC,
-            humidity_pct: state.humidityPct,
+            temperature_c: options.sample?.temperature_c ?? state.temperatureC,
+            humidity_pct: options.sample?.humidity_pct ?? state.humidityPct,
             quality: "valid",
             age_ms: 0,
           },
-          mq2: gas(state.mq2Adc),
-          mq7: { ...gas(state.mq7Adc), heater_control: "unverified" },
-          flame: { detected: state.flame, quality: "valid", age_ms: 0 },
+          mq2: gas(options.sample ? Math.round(1200 + 100 * wave) : state.mq2Adc),
+          mq7: { ...gas(options.sample ? Math.round(900 + 80 * wave) : state.mq7Adc), heater_control: "unverified" },
+          flame: { detected: flame, quality: "valid", age_ms: 0 },
         },
         alert_snapshot: {
-          gas:
+          gas: options.sample?.gas ?? (
             scenario === "normal"
               ? "not_configured"
               : gasActive
                 ? "active"
-                : "normal",
+                : "normal"),
           co:
             scenario === "normal"
               ? "not_configured"
               : coActive
                 ? "active"
                 : "normal",
-          flame: state.flame ? "active" : "normal",
-          buzzer_commanded_on: state.flame || gasActive || coActive,
+          flame: flame ? "active" : "normal",
+          buzzer_commanded_on: options.sample ? flame : flame || gasActive || coActive,
         },
       },
     ],

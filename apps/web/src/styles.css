@@ -978,3 +978,17 @@ textarea {
     padding-top: 0;
   }
 }
+
+.nav-group { display: grid; gap: .15rem; }
+.nav-group .sidebar-label { margin: .6rem 0 .1rem; }
+.sidebar { overflow-y: auto; }
+@media (max-width: 760px) {
+  .sidebar .nav-group { grid-template-rows: auto auto; grid-auto-flow: column; gap: 0; flex: none; }
+  .sidebar .nav-group .sidebar-label { display: block; grid-column: 1 / -1; margin: 0 .6rem; }
+  .sidebar .nav-group a { grid-row: 2; }
+  .sidebar nav > a { align-self: end; }
+}
+
+.settings-column { display:grid; grid-template-columns:minmax(0,1fr); width:min(100%,800px); gap:16px; }
+.settings-column > section { margin:0; width:100%; }
+.settings-column a { display:inline-flex; align-items:center; min-height:44px; }

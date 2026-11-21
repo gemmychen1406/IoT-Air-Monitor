@@ -34,15 +34,18 @@ export const pushSubscriptionSchema = z.strictObject({
   }),
 });
 export const registerPushSchema = z.strictObject({
+  device_ids: z.array(z.uuid()).max(200).optional(),
+  persistent: z.boolean().optional(),
   subscription: pushSubscriptionSchema,
   application_server_key: z.string().regex(/^[A-Za-z0-9_-]{87}$/),
   include_simulators: z.boolean().default(false),
 });
-export type PushConfigView = { enabled: boolean; public_key: string | null; session_bound: true };
+export type PushConfigView = { enabled: boolean; public_key: string | null; session_bound: boolean };
 export type PushSubscriptionView = {
   id: string;
+  device_ids?: string[];
   endpoint_hash: string;
   include_simulators: boolean;
   vapid_public_key: string;
-  expires_at: string;
+  expires_at: string | null;
 };
