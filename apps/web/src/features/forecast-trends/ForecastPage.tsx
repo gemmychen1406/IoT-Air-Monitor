@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { Activity, ArrowRight, TrendingUp, House, Info, Radio, TriangleAlert, ChevronRight, Waves, History } from 'lucide-react';
+import { Activity, TrendingUp, House, Info, Radio, TriangleAlert, Waves, History } from 'lucide-react';
 import { Link } from 'react-router';
 import type { DeviceView, SpacesView } from '@iot/contracts';
 import { api } from '../../lib/api.js';
@@ -14,19 +14,19 @@ import { evaluateDhtChange } from './dhtAdvisory.js';
 import { analyzeTrend } from './timeseries.js';
 import { forecastBoth } from './forecasting.js';
 import { evaluateAdvisory } from './advisory.js';
-import { analyzeAllRoomPairs, lagCorrelationProfile } from './interRoom.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
-import { RoomImpactTimeline } from './RoomImpactTimeline.js';
-import { LagCorrelationChart, PredictionChart, RoomComparisonChart } from './ForecastCharts.js';
+import { PredictionChart } from './ForecastCharts.js';
 import MonitoringChart from '../../pages/MonitoringChart.js';
-import type { ForecastModel, Measure, MinuteReading, TrendResult } from './types.js';
+import type { ForecastModel, MinuteReading, TrendResult } from './types.js';
 import { stationDisplayName } from './stationDisplay.js';
+import { SpreadScenarioPanel } from './SpreadScenarioPanel.js';
+import { classifySpreadRoom } from './spreadForecast.js';
 import './forecast-trends.css';
 
 const TABS = [
   { id: 'trend', label: 'Giám sát biến động', icon: Waves },
   { id: 'forecast', label: 'Dự báo 15–30 phút', icon: TrendingUp },
-  { id: 'rooms', label: 'So sánh các trạm', icon: House },
+  { id: 'rooms', label: 'Dự báo lan truyền', icon: House },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 const trendNames = {
@@ -58,10 +58,9 @@ function CurrentCard({ title, metric, unit, trend, latestValue, freshness, histo
 export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [tab, setTab] = useState<Tab>('trend');
   const [selectedId, setSelectedId] = useState('');
-  const [roomSelection, setRoomSelection] = useState<string[] | null>(null);
+  const [roomSelection, setRoomSelection] = useState<string[]>([]);
   const [model, setModel] = useState<ForecastModel>('holt');
   const [horizon, setHorizon] = useState<15 | 30>(15);
-  const [roomMetric, setRoomMetric] = useState<Measure>('temperature');
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 30_000);
@@ -77,12 +76,9 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
     return stationDisplayName(device.name, room?.name ?? device.location ?? null);
   };
   const selected = activeDevices.find((device) => device.id === selectedId) ?? activeDevices[0];
-  const roomIds = roomSelection === null
-    ? activeDevices.slice(0, Math.min(4, maxComparison)).map((device) => device.id)
-    : roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
-  const queryIds = tab === 'rooms'
-    ? [...new Set([...roomIds, ...(selected ? [selected.id] : [])])]
-    : selected ? [selected.id] : [];
+  // No auto-selected stations: users may choose none, one, or any 2..9 devices.
+  const roomIds = roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
+  const queryIds = selected ? [selected.id] : [];
   const fromMs = Math.floor(nowMs / CFG.minuteMs) * CFG.minuteMs - CFG.historyMinutes * CFG.minuteMs;
   const toMs = Math.ceil(nowMs / CFG.minuteMs) * CFG.minuteMs;
   const historyQueries = useQueries({
@@ -107,27 +103,30 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const forecast = useMemo(() => forecastBoth(points, model, horizon, nowMs, latestSampleAt), [points, model, horizon, nowMs, latestSampleAt]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
   const dhtNotices = useMemo(() => evaluateDhtChange(points, nowMs), [points, nowMs]);
-  const roomHistories = tab === 'rooms' ? roomIds.flatMap((id) => {
-    const response = dataFor(id);
-    return response ? [{ id, name: activeDevices.find((d) => d.id === id) ? deviceRoomLabel(activeDevices.find((d) => d.id === id)!) : 'Thiết bị', points: response.history.points }] : [];
-  }) : [];
-  const roomLag = tab === 'rooms' ? analyzeAllRoomPairs(roomHistories) : [];
-  const candidates = roomLag.filter((item) => item.status === 'candidate').sort((a, b) => (b.correlation ?? 0) - (a.correlation ?? 0));
-  const matchingCandidates = candidates.filter((item) => item.metric === roomMetric);
-  const nameFor = (id: string) => {
+  const spreadStations = roomIds.flatMap((id) => {
     const device = activeDevices.find((d) => d.id === id);
-    return device ? deviceRoomLabel(device) : 'Thiết bị không khả dụng';
-  };
-  const bestPair = matchingCandidates[0] ?? roomLag
-    .filter((item) => item.metric === roomMetric)
-    .sort((a, b) => b.samplePairs - a.samplePairs)[0];
-  const sourceHistory = bestPair ? roomHistories.find((p) => p.id === bestPair.sourceId) : null;
-  const targetHistory = bestPair ? roomHistories.find((p) => p.id === bestPair.targetId) : null;
-  const profile = bestPair && sourceHistory && targetHistory
-    ? lagCorrelationProfile(sourceHistory.points, targetHistory.points, bestPair.metric) : [];
+    if (!device) return [];
+    const reading = device.latest;
+    const snapshot = latestDhtSnapshot(device, nowMs);
+    const stamp = reading?.payload.sampled_at ? Date.parse(reading.payload.sampled_at) : NaN;
+    const recent = device.status === 'online' && reading?.payload.time_quality === 'synced'
+      && Number.isFinite(stamp) && stamp <= nowMs + CFG.minuteMs
+      && nowMs - stamp <= CFG.staleAfterMs;
+    const roomId = spacesQuery.data?.devices.find(item => item.id === device.id)?.room_id;
+    const roomName = spacesQuery.data?.rooms.find(room => room.id === roomId)?.name;
+    return [{
+      id: device.id,
+      name: deviceRoomLabel(device),
+      room: classifySpreadRoom(roomName || device.location || device.name),
+      temperature: snapshot.temperature ?? 0,
+      humidity: snapshot.humidity ?? 0,
+      valid: Boolean(recent && snapshot.temperature !== null && snapshot.humidity !== null),
+      reason: recent ? snapshot.freshness : 'Dữ liệu không đồng bộ hoặc đã cũ',
+    }];
+  });
   return <div className="ft-page">
     <div className="page-title ft-title">
-      <div><h1>Giám sát & Dự báo</h1><p>Theo dõi nhiệt độ, độ ẩm, dự báo ngắn hạn và so sánh các trạm từ dữ liệu hệ thống.</p></div>
+      <div><h1>Giám sát & Dự báo</h1><p>Theo dõi nhiệt độ, độ ẩm và dự báo ảnh hưởng lan truyền giữa các trạm từ dữ liệu hệ thống.</p></div>
       {selected ? <label className="ft-device-select">Thiết bị / khu vực
         <select value={selected.id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedId(event.target.value)}>
           {activeDevices.map((device) => <option value={device.id} key={device.id}>{deviceRoomLabel(device)}{device.source_kind === 'simulator' ? ' (mô phỏng)' : ''}</option>)}
@@ -200,53 +199,26 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
         </> : null}
       </> : null}
       {tab === 'rooms' ? <>
-        <section className="panel ft-room-filter"><div className="ft-section-bar"><h2>Các trạm cần so sánh</h2><div className="ft-room-actions"><span className="ft-muted">Đang chọn {roomIds.length}/{maxComparison} trạm (tối thiểu 2)</span><button type="button" onClick={() => setRoomSelection(activeDevices.slice(0, maxComparison).map((device) => device.id))}>Chọn tất cả {maxComparison} trạm</button></div></div>
+        <section className="panel ft-room-filter">
+          <div className="ft-section-bar">
+            <div><h2>Chọn các trạm để dự báo lan truyền</h2><p className="ft-muted">Chọn từ 2 đến {maxComparison} trạm. Không chọn thì không hiển thị dự báo; chọn 1 trạm thì cần thêm trạm khác.</p></div>
+            <div className="ft-room-actions">
+              <span className="ft-muted">Đã chọn {roomIds.length}/{maxComparison} trạm</span>
+              <button type="button" onClick={() => setRoomSelection([])}>Bỏ chọn</button>
+              <button type="button" onClick={() => setRoomSelection(activeDevices.slice(0, maxComparison).map(device => device.id))}>Chọn tất cả {maxComparison} trạm</button>
+            </div>
+          </div>
           <div className="ft-room-options">{activeDevices.map((device) => {
             const chosen = roomIds.includes(device.id);
-            return <label key={device.id} className="ft-check"><input type="checkbox" checked={chosen} disabled={(!chosen && roomIds.length >= maxComparison) || (chosen && roomIds.length <= 2)} onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              const checked = event.target.checked;
-              setRoomSelection((old) => { const base = old ?? activeDevices.slice(0, 4).map((item) => item.id); return checked ? [...base, device.id].slice(0, maxComparison) : base.filter((id) => id !== device.id); });
-            }}/>{deviceRoomLabel(device)}</label>;
+            return <label key={device.id} className="ft-check"><input type="checkbox" checked={chosen}
+              disabled={!chosen && roomIds.length >= maxComparison}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setRoomSelection(old => event.target.checked
+                ? [...old.filter(id => activeDevices.some(d => d.id === id)), device.id].slice(0, maxComparison)
+                : old.filter(id => id !== device.id))}/>{deviceRoomLabel(device)}</label>;
           })}</div>
         </section>
-        <div className="ft-room-grid">{roomIds.map((id) => {
-          const device = activeDevices.find((item) => item.id === id);
-          if (!device) return null;
-          const last = latestDhtSnapshot(device, nowMs);
-          const data = dataFor(id);
-          const values = data?.history.points ?? emptyPoints;
-          const trendT = analyzeTrend(values, 'temperature', nowMs, data?.history.latestSampleAt);
-          const trendH = analyzeTrend(values, 'humidity', nowMs, data?.history.latestSampleAt);
-          const forecastRoom = forecastBoth(values, model, horizon, nowMs, data?.history.latestSampleAt);
-          const note = evaluateAdvisory(values, trendT, trendH, forecastRoom);
-          return <button key={id} type="button" className={`ft-room-card ft-room-${note.level} ${selected?.id === id ? 'selected' : ''}`} onClick={() => { setSelectedId(id); setTab('trend'); }}>
-            <span className="ft-room-top"><strong>{deviceRoomLabel(device)}</strong><ChevronRight size={18}/></span>
-            <span className="ft-room-values">{formatSensorValue('temperature_c', last.temperature)}<small>°C</small><span> / </span>{formatSensorValue('humidity_pct', last.humidity)}<small>%RH</small></span>
-            <span className="ft-room-status">{note.title}</span>
-            <span className="ft-muted">Nhiệt: {trendNames[trendT.status]} · Độ ẩm: {trendNames[trendH.status]}</span>
-            {!data ? <span className="ft-warning">{queryFor(id)?.isPending ? 'Đang tải lịch sử…' : 'Chưa tải được lịch sử'}</span> : null}
-            <span className="ft-muted">{last.freshness}</span>
-          </button>;
-        })}</div>
-        {roomIds.length < 2 ? <section className="panel ft-empty-multi"><House size={30}/><h2>Chưa đủ trạm để so sánh</h2><p>Hệ thống mới có {activeDevices.length} thiết bị. Cần ít nhất hai trạm có số đo tại các mốc thời gian tương ứng.</p>
-          <div className="ft-empty-actions"><Link to="/app/devices">Quản lý thiết bị <ArrowRight size={15}/></Link></div>
-        </section> : <>
-          <section className="panel ft-wide-panel ft-chart-panel"><div className="ft-section-bar"><div><h2>So sánh diễn biến giữa các trạm</h2><p className="ft-muted">So sánh trạm theo cùng mốc thời gian. Đường ngắt khi thiếu mẫu hợp lệ; hệ thống không tự tạo dữ liệu để nối khoảng trống.</p></div>
-            <div className="ft-switch-metric"><button className={roomMetric === 'temperature' ? 'active' : ''} onClick={() => setRoomMetric('temperature')}>Nhiệt độ</button><button className={roomMetric === 'humidity' ? 'active' : ''} onClick={() => setRoomMetric('humidity')}>Độ ẩm</button></div>
-          </div><RoomComparisonChart rooms={roomHistories} metric={roomMetric}/></section>
-          <RoomImpactTimeline rooms={roomHistories} metric={roomMetric} demo={false}/>
-          <section className="panel ft-links"><div className="ft-section-bar"><h2>Quan hệ biến động có độ trễ</h2><Activity size={19}/></div>
-            <p>Hệ thống đối chiếu biến động theo phút theo mọi hướng, từ 1 đến {CFG.lagMaxMinutes} phút. Có tương quan không đồng nghĩa là đã chứng minh nhiệt hoặc hơi ẩm lan truyền.</p>
-            {historyQueries.some((query) => query.isPending) ? <p>Đang tải lịch sử các phòng…</p> : null}
-            {matchingCandidates.length ? <div className="ft-link-list">{matchingCandidates.slice(0, 8).map((entry) => <article key={`${entry.sourceId}:${entry.targetId}:${entry.metric}`} className="ft-link-item">
-              <strong>{nameFor(entry.sourceId)} <ArrowRight size={16}/> {nameFor(entry.targetId)}</strong>
-              <span>Độ trễ khoảng {entry.lagMinutes} phút · tương quan {entry.correlation?.toFixed(2)} · {entry.samplePairs} cặp dữ liệu</span><small>Nghi vấn liên hệ thống kê, chưa xác nhận lan truyền</small>
-            </article>)}</div> : <p className="ft-muted">{roomLag.length && roomLag.every((item) => item.status === 'insufficient') ? 'Chưa đủ dữ liệu đồng bộ để phát hiện độ trễ.' : 'Chưa phát hiện mối liên hệ trễ đủ rõ trên dữ liệu hiện tại.'}</p>}
-            {bestPair ? <div className="ft-lag-chart-panel"><h3>Tương quan độ trễ 0–{CFG.lagMaxMinutes} phút</h3><p className="ft-muted">{nameFor(bestPair.sourceId)} → {nameFor(bestPair.targetId)} · {roomMetric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'}</p><LagCorrelationChart points={profile}/><p className="ft-muted">{bestPair.detail}</p></div> : null}
-            <div className="ft-info"><Info size={16}/> Simulator của nhóm chạy độc lập, nên có thể không phát hiện độ trễ. Phát hiện tương quan không chứng minh sự truyền nhiệt hoặc trao đổi hơi ẩm.</div>
-            <p className="ft-muted ft-door-note"><strong>Yếu tố cửa thông phòng:</strong> Cửa mở có thể giúp không khí trao đổi nhanh hơn; cửa đóng có thể làm trao đổi chậm hơn. DHT11 không đo trạng thái cửa, vì vậy hệ thống không tự khẳng định cửa đang mở/đóng hoặc điều chỉnh kết quả theo giả định.</p>
-          </section>
-        </>}
+        {roomIds.length === 1 ? <section className="panel ft-spread-state" role="status"><House size={23}/><strong>Đã chọn 1 trạm</strong><p>Hãy chọn thêm ít nhất 1 trạm để xem nhiệt và hơi ẩm dự kiến ảnh hưởng tới vị trí khác như thế nào.</p></section> : null}
+        {roomIds.length >= 2 ? <SpreadScenarioPanel stations={spreadStations}/> : null}
       </> : null}
     </>}
   </div>;
