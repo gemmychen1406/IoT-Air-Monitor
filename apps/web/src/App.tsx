@@ -42,7 +42,6 @@ const UsersPage = lazy(() => import('./pages/UsersPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const MonitoringSpacesPage = lazy(() => import('./features/monitoring-spaces/MonitoringSpacesPage.js'));
 const SupportContactsPage = lazy(() => import('./features/incident-response/SupportContactsPage.js'));
-const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
 const DeviceDiagnosticsPage = lazy(() => import('./features/device-diagnostics/DeviceDiagnosticsPage.js'));
 const SmartMonitoringHub = lazy(() => import('./features/smart-monitoring/SmartMonitoringHub.js'));
 // [FORECAST - SUA FILE CHUNG] Nap lazy trang Forecast, khong thay doi trang khac.
@@ -258,7 +257,6 @@ export function App() {
             {group.links.filter(item => !('admin' in item) || session.user.role === 'admin').map(({path,icon:Icon,label}) =>
               <NavLink key={path} to={`/app/${path}`}><Icon size={19}/>{label}</NavLink>)}
           </div>)}
-          <NavLink to="/app/extensions"><Activity size={19}/>Tiện ích mở rộng</NavLink>
         </nav>
       </aside>
       <div className="workspace">
@@ -343,7 +341,6 @@ export function App() {
                 path="/app/comparison-reporting"
                 element={<ComparisonReportingPage devices={devices} user={session.user} />}
               />
-              <Route path="/app/extensions" element={<ExtensionsHub />} />
               <Route path="/app/device-diagnostics" element={<DeviceDiagnosticsPage key={session.user.id} devices={devices} userId={session.user.id} />} />
               <Route path="/app/spaces/:areaId?" element={<MonitoringSpacesPage user={session.user} />} />
               <Route path="/app/support-contacts" element={<SupportContactsPage user={session.user} />} />
