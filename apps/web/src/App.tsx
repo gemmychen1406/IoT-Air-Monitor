@@ -19,6 +19,7 @@ import {
   Building2,
   ContactRound,
   Sparkles,
+  TrendingUp, // [FORECAST - SUA FILE CHUNG] Icon cho menu Xu huong & Du bao
 } from 'lucide-react';
 import type { DeviceView } from '@iot/contracts';
 import { api, HttpError } from './lib/api.js';
@@ -44,6 +45,8 @@ const SupportContactsPage = lazy(() => import('./features/incident-response/Supp
 const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
 const DeviceDiagnosticsPage = lazy(() => import('./features/device-diagnostics/DeviceDiagnosticsPage.js'));
 const SmartMonitoringHub = lazy(() => import('./features/smart-monitoring/SmartMonitoringHub.js'));
+// [FORECAST - SUA FILE CHUNG] Nap lazy trang Forecast, khong thay doi trang khac.
+const ForecastPage = lazy(() => import('./features/forecast-trends/ForecastPage.js'));
 const ComparisonReportingPage = lazy(
   () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
 );
@@ -62,6 +65,8 @@ const navigation = [
   ]},
   {title:'Phân tích',links:[
     {path:'analytics',icon:ChartNoAxesCombined,label:'Phân tích & lịch sử'},
+    // [FORECAST - SUA FILE CHUNG] Them muc menu vao nhom Phan tich.
+    {path:'forecast',icon:TrendingUp,label:'Xu hướng & Dự báo'},
     {path:'comparison-reporting',icon:GitCompareArrows,label:'So sánh & báo cáo'},
   ]},
   {title:'Cấu hình & quản trị',links:[
@@ -332,6 +337,8 @@ export function App() {
               <Route path="/app/settings/notifications" element={<NotificationSettingsPage devices={devices} user={session.user} />} />
               <Route path="/app/alerts/:id" element={<IncidentPage user={session.user} />} />
               <Route path="/app/analytics" element={<AnalyticsPage devices={devices} />} />
+              {/* [FORECAST - SUA FILE CHUNG] Route ca nhan, dung devices va API chung cua nhom. */}
+              <Route path="/app/forecast" element={<ForecastPage devices={devices} />} />
               <Route
                 path="/app/comparison-reporting"
                 element={<ComparisonReportingPage devices={devices} user={session.user} />}
