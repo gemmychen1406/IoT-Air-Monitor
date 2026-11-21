@@ -13,7 +13,7 @@ import {
   authenticateUser,
   hashSecret,
   newSecret,
-  SESSION_COOKIE,
+  SESSION_COOKIE, BROWSER_COOKIE, sessionCookieToken,
 } from './modules/auth.js';
 import { ingest } from './modules/telemetry.js';
 import { openapi } from './openapi.js';
@@ -25,6 +25,11 @@ import { registerDeviceDiagnostics } from './modules/device-diagnostics/routes.j
 import { registerUsers } from './modules/users.js';
 import type { AlertNotifier } from './modules/notifications.js';
 import { registerPushSubscriptions } from './modules/push-subscriptions.js';
+import { registerMonitoringSpaces } from './modules/monitoring-spaces/routes.js';
+import { registerIncidentSupport } from './modules/incident-response/routes.js';
+import { registerAlertDelivery } from './modules/alert-delivery/routes.js';
+import { registerEnvironment } from './modules/environment/routes.js';
+import type { EnvironmentAvailability } from './modules/environment/policy.js';
 import type { WebPushConfig } from './modules/web-push.js';
 
 export function createApp({
@@ -38,6 +43,7 @@ export function createApp({
   onEvent = () => {},
   notify,
   webPush,
+  environment,
 }: {
   db: Database;
   origin: string;
@@ -49,6 +55,7 @@ export function createApp({
   onEvent?: (type: string, deviceId: string) => void;
   notify?: AlertNotifier;
   webPush?: WebPushConfig;
+  environment?: EnvironmentAvailability;
 }) {
   const app = express();
   const origins = allowedWebOrigins(origin);
@@ -129,9 +136,19 @@ export function createApp({
             'INVALID_LOGIN',
             'Thông tin đăng nhập đã thay đổi. Vui lòng thử lại.',
           );
-        await tx.session.create({
+        const loginSession = await tx.session.create({
           data: { userId: row.id, tokenHash: hashSecret(token), expiresAt },
         });
+        const previousToken = sessionCookieToken(req.headers.cookie);
+        if (previousToken) await tx.webPushSubscription.deleteMany({
+          where:{session:{tokenHash:hashSecret(previousToken),userId:{not:row.id}}},
+        });
+        const browserToken = sessionCookieToken(req.headers.cookie, BROWSER_COOKIE);
+        if (browserToken) {
+          const browserHash = hashSecret(browserToken);
+          await tx.webPushSubscription.deleteMany({where:{browserHash, session:{userId:{not:row.id}}}});
+          await tx.webPushSubscription.updateMany({where:{browserHash, session:{userId:row.id}}, data:{sessionId:loginSession.id}});
+        }
         return row;
       });
       res.cookie(SESSION_COOKIE, token, { ...cookieOptions, maxAge: 8 * 3600000 });
@@ -182,6 +199,7 @@ export function createApp({
   app.post('/api/v1/auth/logout', async (_req, res) => {
     const sessionId = res.locals.session.sessionId as string;
     await db.session.delete({ where: { id: sessionId } });
+    res.clearCookie(BROWSER_COOKIE, cookieOptions);
     res.clearCookie(SESSION_COOKIE, cookieOptions);
     onLogout(sessionId);
     res.status(204).end();
@@ -203,7 +221,13 @@ export function createApp({
   registerAnalytics(features, context);
   registerDeviceDiagnostics(features, context);
   registerUsers(features, context, onLogout);
-  registerPushSubscriptions(features, context, webPush);
+  registerPushSubscriptions(features, context, webPush, secureCookies);
+  registerMonitoringSpaces(features, context);
+  registerIncidentSupport(features, context);
+  registerAlertDelivery(features, context);
+  registerEnvironment(features, context, environment ?? {
+    telegram: false, telegramSimulators: false, pushPublicKey: webPush?.publicKey,
+  });
   app.use('/api/v1', features);
   app.use((_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Endpoint không tồn tại.')));
   const errors: ErrorRequestHandler = (error: unknown, _req, res, _next) => {

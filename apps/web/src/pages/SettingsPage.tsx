@@ -1,9 +1,9 @@
 import type { UserView } from '@iot/contracts';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import { api } from '../lib/api.js';
 import { PageTitle, LoadState } from '../components/FeatureUI.js';
-import { PushSettings } from '../components/PushSettings.js';
 export default function SettingsPage({
   user,
   theme,
@@ -48,7 +48,11 @@ export default function SettingsPage({
       <PageTitle title="Cài đặt">
         <p>Tài khoản và giao diện làm việc.</p>
       </PageTitle>
-      <PushSettings />
+      <div className="settings-column">
+      <section className="panel feature-section">
+        <h2>Kênh và lịch nhận</h2>
+        <Link to="/app/settings/notifications">Thông báo</Link>
+      </section>
       <section className="panel settings-panel">
         <h2>Tài khoản</h2>
         <p>{user.email}</p>
@@ -142,6 +146,7 @@ export default function SettingsPage({
           xuất thu hồi phiên trên server.
         </p>
       </section>
+      </div>
     </>
   );
 }

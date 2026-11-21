@@ -28,6 +28,8 @@ model User {
   acknowledgements AlertAcknowledgement[]
   configs          DeviceConfig[]
   auditLogs        AuditLog[]
+  pushShowDetails  Boolean                @default(false) @map("push_show_details")
+  alertReceipts    AlertReceipt[]
 
   @@map("users")
 }
@@ -70,8 +72,73 @@ model Device {
   events               AlertEvent[]
   statuses             DeviceStatusHistory[]
   rollups              SensorRollup[]
+  roomAssignment       DeviceRoomAssignment?
 
   @@map("devices")
+}
+
+model MonitoringArea {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String
+  nameKey     String           @unique @map("name_key")
+  description String           @default("")
+  archivedAt  DateTime?        @map("archived_at") @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rooms       MonitoringRoom[]
+  contacts    SupportContact[]
+  mapTemperatureC Float        @default(30) @map("map_temperature_c")
+  mapHumidityPct  Float        @default(75) @map("map_humidity_pct")
+
+  @@map("monitoring_areas")
+}
+
+model MonitoringRoom {
+  layoutVersion Int @default(0) @map("layout_version")
+  id          String                 @id @default(uuid()) @db.Uuid
+  areaId      String                 @map("area_id") @db.Uuid
+  name        String
+  nameKey     String                 @map("name_key")
+  description String                 @default("")
+  archivedAt  DateTime?              @map("archived_at") @db.Timestamptz(3)
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  area        MonitoringArea         @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  assignments DeviceRoomAssignment[]
+  contacts    SupportContact[]
+
+  @@unique([areaId, nameKey])
+  @@map("monitoring_rooms")
+}
+
+model DeviceRoomAssignment {
+  deviceId String         @id @map("device_id") @db.Uuid
+  roomId   String         @map("room_id") @db.Uuid
+  device   Device         @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  room     MonitoringRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  x        Float?
+  y        Float?
+
+  @@index([roomId])
+  @@map("device_room_assignments")
+}
+
+model SupportContact {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String
+  role        String
+  phone       String
+  description String          @default("")
+  priority    Int             @default(100)
+  areaId      String?         @map("area_id") @db.Uuid
+  roomId      String?         @map("room_id") @db.Uuid
+  archivedAt  DateTime?       @map("archived_at") @db.Timestamptz(3)
+  area        MonitoringArea? @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  room        MonitoringRoom? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([areaId])
+  @@index([roomId])
+  @@map("support_contacts")
 }
 
 model DeviceCredential {
@@ -134,6 +201,8 @@ model AlertIncident {
   states          AlertState[]
   notifications   TelegramNotification[]
   pushDeliveries WebPushDelivery[]
+  deliveryHistory AlertDelivery[]
+  receipts        AlertReceipt[]
 
   @@unique([deviceId, externalId])
   @@index([deviceId, firstObservedAt(sort: Desc)])
@@ -269,6 +338,7 @@ model SensorRollup {
 }
 
 model TelegramNotification {
+  round Int @default(0)
   id            String        @id @default(uuid()) @db.Uuid
   incidentId    String        @map("incident_id") @db.Uuid
   severity      String
@@ -283,7 +353,7 @@ model TelegramNotification {
   lastErrorCode String?       @map("last_error_code")
   incident      AlertIncident @relation(fields: [incidentId], references: [id])
 
-  @@unique([incidentId, severity])
+  @@unique([incidentId, severity, round])
   @@index([status, nextAttemptAt])
   @@map("telegram_notifications")
 }
@@ -291,6 +361,8 @@ model TelegramNotification {
 model WebPushSubscription {
   id String @id @default(uuid()) @db.Uuid
   sessionId String @unique @map("session_id") @db.Uuid
+  sensorIds String[] @default([]) @db.Uuid @map("sensor_ids")
+  browserHash String? @unique @map("browser_hash")
   endpointHash String @unique @map("endpoint_hash")
   endpoint String
   p256dh String
@@ -305,6 +377,7 @@ model WebPushSubscription {
 }
 
 model WebPushDelivery {
+  round Int @default(0)
   id String @id @default(uuid()) @db.Uuid
   incidentId String @map("incident_id") @db.Uuid
   subscriptionId String @map("subscription_id") @db.Uuid
@@ -321,7 +394,128 @@ model WebPushDelivery {
   incident AlertIncident @relation(fields: [incidentId], references: [id])
   subscription WebPushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
-  @@unique([incidentId, severity, subscriptionId])
+  @@unique([incidentId, severity, subscriptionId, round], map: "push_delivery_round_key")
   @@index([status, nextAttemptAt])
   @@map("web_push_deliveries")
+}
+
+model AlertDelivery {
+  targetId String? @db.Uuid @map("target_id")
+  round Int @default(0)
+  ordinal         BigInt        @id @default(autoincrement())
+  channel         String
+  jobId           String        @map("job_id") @db.Uuid
+  incidentId      String        @map("incident_id") @db.Uuid
+  recipientUserId String?       @map("recipient_user_id") @db.Uuid
+  severity        String
+  status          String
+  attempts        Int
+  createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
+  nextAttemptAt   DateTime      @map("next_attempt_at") @db.Timestamptz(3)
+  acceptedAt      DateTime?     @map("accepted_at") @db.Timestamptz(3)
+  lastErrorCode   String?       @map("last_error_code")
+  deviceName      String?       @map("device_name")
+  location        String?
+  locationSource  String?       @map("location_source")
+  incident        AlertIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  attemptHistory  AlertDeliveryAttempt[]
+
+  @@unique([channel, jobId])
+  @@index([recipientUserId, ordinal(sort: Desc)])
+  @@index([incidentId, channel])
+  @@map("alert_deliveries")
+}
+
+model AlertDeliveryAttempt {
+  deliveryOrdinal BigInt    @map("delivery_ordinal")
+  number          Int
+  outcome         String
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(3)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(3)
+  errorCode       String?   @map("error_code")
+  delivery        AlertDelivery @relation(fields: [deliveryOrdinal], references: [ordinal], onDelete: Cascade)
+
+  @@id([deliveryOrdinal, number])
+  @@map("alert_delivery_attempts")
+}
+
+model AlertReceipt {
+  incidentId String        @map("incident_id") @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  receivedAt DateTime      @default(now()) @map("received_at") @db.Timestamptz(3)
+  source     String        @default("web")
+  late       Boolean
+  incident   AlertIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([incidentId, userId])
+  @@index([userId])
+  @@map("alert_receipts")
+}
+
+model EnvironmentPolicy {
+  id        String   @id
+  channel   String
+  userId    String?  @map("user_id") @db.Uuid
+  config    Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  devices   EnvironmentDeviceState[]
+  jobs      EnvironmentDelivery[]
+
+  @@map("environment_policies")
+}
+
+model EnvironmentDeviceState {
+  policyId          String    @map("policy_id")
+  deviceId          String    @map("device_id") @db.Uuid
+  startedAt         DateTime  @map("started_at") @db.Timestamptz(3)
+  lastDigestAt      DateTime? @map("last_digest_at") @db.Timestamptz(3)
+  variationChecked  DateTime? @map("variation_checked") @db.Timestamptz(3)
+  lastVariationAt   DateTime? @map("last_variation_at") @db.Timestamptz(3)
+  statusCursor      BigInt    @map("status_cursor") @default(0)
+  offlineId         BigInt?   @map("offline_id")
+  offlineAt         DateTime? @map("offline_at") @db.Timestamptz(3)
+  offlineQueued     Boolean   @map("offline_queued") @default(false)
+  lastOfflineAt     DateTime? @map("last_offline_at") @db.Timestamptz(3)
+  policy            EnvironmentPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@id([policyId, deviceId])
+  @@map("environment_device_states")
+}
+
+model EnvironmentDelivery {
+  ordinal         BigInt    @id @default(autoincrement())
+  id              String    @unique @default(uuid()) @db.Uuid
+  policyId        String    @map("policy_id")
+  channel         String
+  userId          String?   @map("user_id") @db.Uuid
+  deviceId        String    @map("device_id") @db.Uuid
+  deviceName      String    @map("device_name")
+  simulator       Boolean
+  location        String?
+  kind            String
+  sourceKey       String    @map("source_key")
+  targetKey       String    @map("target_key")
+  subscriptionId  String?   @map("subscription_id") @db.Uuid
+  dependsOn       String?   @map("depends_on") @db.Uuid
+  summary         String
+  occurredAt      DateTime  @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime  @map("created_at") @db.Timestamptz(3)
+  nextAttemptAt   DateTime  @map("next_attempt_at") @db.Timestamptz(3)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
+  leaseUntil      DateTime? @map("lease_until") @db.Timestamptz(3)
+  leaseToken      String?   @map("lease_token") @db.Uuid
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(3)
+  status          String    @default("pending")
+  lastErrorCode   String?   @map("last_error_code")
+  attemptLog      Json      @map("attempt_log") @default("[]")
+  attempts        Int       @default(0)
+  policy          EnvironmentPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@unique([policyId, deviceId, kind, sourceKey, targetKey], map: "environment_deliveries_event_target_key")
+  @@index([channel, status, nextAttemptAt])
+  @@index([status, expiresAt])
+  @@index([policyId, deviceId, kind, occurredAt(sort: Desc)])
+  @@index([userId, ordinal(sort: Desc)])
+  @@map("environment_deliveries")
 }

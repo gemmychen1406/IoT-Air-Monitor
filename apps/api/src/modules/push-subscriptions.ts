@@ -3,16 +3,16 @@ import { ECDH } from 'node:crypto';
 import { registerPushSchema } from '@iot/contracts';
 import type { FeatureContext } from '../lib/context.js';
 import type { WebPushConfig } from './web-push.js';
-import { hashSecret } from './auth.js';
+import { BROWSER_COOKIE, newSecret, hashSecret } from './auth.js';
 import { ApiError } from '../lib/errors.js';
 
 export function registerPushSubscriptions(
   router: Router,
   { db, reply }: FeatureContext,
-  config?: WebPushConfig,
+  config?: WebPushConfig, secureCookies = false,
 ) {
   router.get('/push/config', (_req, res) =>
-    reply(res, { enabled: !!config, public_key: config?.publicKey ?? null, session_bound: true }),
+    reply(res, { enabled: !!config, public_key: config?.publicKey ?? null, session_bound: false }),
   );
   router.get('/push/subscription', async (_req, res) => {
     const row = await db.webPushSubscription.findUnique({
@@ -23,10 +23,11 @@ export function registerPushSubscriptions(
       row
         ? {
             id: row.id,
+            device_ids: row.sensorIds,
             endpoint_hash: row.endpointHash,
             include_simulators: row.includeSimulators,
             vapid_public_key: row.vapidPublicKey,
-            expires_at: res.locals.session.expiresAt.toISOString(),
+            expires_at: row.browserHash ? null : res.locals.session.expiresAt.toISOString(),
           }
         : null,
     );
@@ -48,6 +49,7 @@ export function registerPushSubscriptions(
     if (input.subscription.expirationTime && input.subscription.expirationTime <= Date.now())
       throw new ApiError(422, 'PUSH_EXPIRED', 'Đăng ký trình duyệt đã hết hạn.');
     const sessionId = res.locals.session.sessionId as string;
+    const browserToken = input.persistent ? newSecret() : undefined;
     const row = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(73144)`;
       await tx.$queryRaw`SELECT id FROM sessions WHERE id=${sessionId}::uuid FOR UPDATE`;
@@ -57,6 +59,9 @@ export function registerPushSubscriptions(
       });
       if (!session || session.expiresAt <= new Date() || !session.user.active)
         throw new ApiError(401, 'UNAUTHORIZED', 'Phiên đã hết hạn.');
+      const sensorIds = input.device_ids && [...new Set(input.device_ids)];
+      if (sensorIds?.length && await tx.device.count({where:{id:{in:sensorIds}}}) !== sensorIds.length)
+        throw new ApiError(422, 'UNKNOWN_DEVICE', 'Có thiết bị chưa đăng ký. Hãy tải lại danh sách thiết bị.');
       const endpointHash = hashSecret(input.subscription.endpoint);
       const previous = await tx.webPushSubscription.findUnique({
         where: { endpointHash },
@@ -65,7 +70,7 @@ export function registerPushSubscriptions(
       if (previous && previous.sessionId !== sessionId) {
         if (
           previous.session.userId !== session.userId &&
-          previous.session.expiresAt > new Date() &&
+          (previous.browserHash || previous.session.expiresAt > new Date()) &&
           previous.session.user.active
         )
           throw new ApiError(
@@ -87,6 +92,8 @@ export function registerPushSubscriptions(
           'Tối đa 20 trình duyệt/phiên nhận push cho mỗi tài khoản.',
         );
       const data = {
+        sensorIds,
+        browserHash: browserToken ? hashSecret(browserToken) : null,
         endpointHash,
         endpoint: input.subscription.endpoint,
         p256dh: input.subscription.keys.p256dh,
@@ -100,12 +107,14 @@ export function registerPushSubscriptions(
         update: data,
       });
     });
+    if (browserToken) res.cookie(BROWSER_COOKIE, browserToken, { httpOnly:true, secure:secureCookies, sameSite:"lax", path:"/", maxAge: 400 * 86400000 });
     reply(res, {
       id: row.id,
+      device_ids: row.sensorIds,
       endpoint_hash: row.endpointHash,
       include_simulators: row.includeSimulators,
       vapid_public_key: row.vapidPublicKey,
-      expires_at: res.locals.session.expiresAt.toISOString(),
+      expires_at: row.browserHash ? null : res.locals.session.expiresAt.toISOString(),
     });
   });
   router.delete('/push/subscription', async (_req, res) => {

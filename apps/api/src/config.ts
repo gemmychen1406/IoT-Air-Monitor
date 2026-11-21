@@ -18,6 +18,7 @@ export function parseConfig(env: Record<string, string | undefined>) {
       HOST: z.string().default(env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1'),
       PORT: z.coerce.number().int().min(1).max(65535).default(4000),
       LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
+      CRITICAL_REMINDER_SECONDS: z.coerce.number().int().min(10).max(86400).default(300),
       TELEGRAM_ENABLED: z.enum(['true', 'false']).default('false'),
       TELEGRAM_BOT_TOKEN: z.string().optional(),
       TELEGRAM_CHAT_ID: z.string().optional(),
@@ -94,6 +95,7 @@ export function parseConfig(env: Record<string, string | undefined>) {
             subject: input.WEB_PUSH_VAPID_SUBJECT!,
           }
         : undefined,
+    reminderSeconds: input.CRITICAL_REMINDER_SECONDS,
     telegram:
       input.TELEGRAM_ENABLED === 'true'
         ? {

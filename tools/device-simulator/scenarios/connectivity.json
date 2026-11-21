@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "kind": "send",
+      "duration_s": 30,
+      "interval_s": 5,
+      "temperature_c": 26,
+      "humidity_pct": 52
+    },
+    { "kind": "pause", "duration_s": 150 },
+    {
+      "kind": "send",
+      "duration_s": 45,
+      "interval_s": 5,
+      "temperature_c": 26,
+      "humidity_pct": 52
+    }
+  ]
+}

@@ -1,16 +1,17 @@
 import webpush from 'web-push';
 import { createHash } from 'node:crypto';
-import { pushSubscriptionSchema } from '@iot/contracts';
+import { pushSubscriptionSchema, type EnvironmentPushPayload } from '@iot/contracts';
 import type { WebPushConfig, PushPayload, PushTarget, PushResult } from './web-push.js';
 export async function sendWebPush(
   config: WebPushConfig,
   target: PushTarget,
-  payload: PushPayload,
+  payload: PushPayload | EnvironmentPushPayload,
   request: typeof webpush.sendNotification = webpush.sendNotification,
 ): Promise<PushResult> {
   const parsed = pushSubscriptionSchema.safeParse(target);
   if (!parsed.success)
     return { ok: false, retryable: false, gone: true, code: 'WEB_PUSH_INVALID_SUBSCRIPTION' };
+  const ordinary = payload.version === 3;
   try {
     const result = await request(parsed.data, JSON.stringify(payload), {
       vapidDetails: {
@@ -19,10 +20,10 @@ export async function sendWebPush(
         privateKey: config.privateKey,
       },
       TTL: 60,
-      urgency: 'high',
+      urgency: ordinary ? 'normal' : 'high',
       timeout: 10000,
       topic: createHash('sha256')
-        .update(`${payload.incident_id}:${payload.severity}`)
+        .update(ordinary ? payload.notification_id : `${payload.incident_id}:${payload.severity}`)
         .digest('base64url')
         .slice(0, 32),
     });

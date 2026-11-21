@@ -1,18 +1,38 @@
 import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { DeviceView, IncidentView } from '@iot/contracts';
 import { apiPage } from '../lib/api.js';
 import { PageTitle, LoadState, dateText, conditionText } from '../components/FeatureUI.js';
 
+const fieldFilters = ['device_id', 'condition', 'severity', 'status', 'acknowledged'] as const;
+const dateFilters = ['from', 'to'] as const;
+
+function dateInputValue(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    : '';
+}
+
 export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
-  const [filters, setFilters] = useState('');
+  const [search, setSearch] = useSearchParams();
+  const [filterError, setFilterError] = useState('');
+  const params = new URLSearchParams();
+  for (const name of [...fieldFilters, ...dateFilters]) {
+    const value = search.get(name);
+    if (value) params.set(name, value);
+  }
+  const filters = params.toString();
+  const selectedDevice = params.get('device_id');
+  const selectedDeviceExists = devices.some((device) => device.id === selectedDevice);
   const list = useInfiniteQuery({
     queryKey: ['incidents', filters],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       apiPage<IncidentView[]>(
-        `/alerts/incidents?limit=30&${filters}${pageParam ? `&cursor=${pageParam}` : ''}`,
+        `/alerts/incidents?limit=30&${filters}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
       ),
     getNextPageParam: (page) => page.meta.next_cursor ?? undefined,
     refetchInterval: 10000,
@@ -21,11 +41,26 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const query = new URLSearchParams();
-    for (const key of ['device_id', 'condition', 'severity', 'status', 'acknowledged'])
+    for (const key of fieldFilters)
       if (data.get(key)) query.set(key, String(data.get(key)));
-    for (const key of ['from', 'to'])
-      if (data.get(key)) query.set(key, new Date(String(data.get(key))).toISOString());
-    setFilters(query.toString());
+    for (const key of dateFilters) {
+      const value = data.get(key);
+      if (!value) continue;
+      const date = new Date(String(value));
+      if (!Number.isFinite(date.getTime())) {
+        setFilterError('Thời gian lọc không hợp lệ.');
+        return;
+      }
+      query.set(key, date.toISOString());
+    }
+    const from = query.get('from');
+    const to = query.get('to');
+    if ((from || to) && (!from || !to || from >= to)) {
+      setFilterError('Chọn cả hai thời điểm và đặt thời điểm bắt đầu trước thời điểm kết thúc.');
+      return;
+    }
+    setFilterError('');
+    setSearch(query);
   }
   const rows = list.data?.pages.flatMap((page) => page.data) ?? [];
   return (
@@ -33,11 +68,14 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
       <PageTitle title="Cảnh báo & sự cố">
         <p>Lịch sử sự cố gas, CO và lửa.</p>
       </PageTitle>
-      <form className="panel filter-grid" onSubmit={submit}>
+      <form key={`${filters}:${selectedDeviceExists}`} className="panel filter-grid" onSubmit={submit}>
         <label>
           Thiết bị
-          <select name="device_id">
+          <select name="device_id" defaultValue={selectedDevice ?? ''}>
             <option value="">Tất cả</option>
+            {selectedDevice && !selectedDeviceExists ? (
+              <option value={selectedDevice}>Thiết bị đã chọn</option>
+            ) : null}
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -47,7 +85,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
         </label>
         <label>
           Điều kiện
-          <select name="condition">
+          <select name="condition" defaultValue={params.get('condition') ?? ''}>
             <option value="">Tất cả</option>
             <option value="gas">Gas</option>
             <option value="co">CO</option>
@@ -56,7 +94,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
         </label>
         <label>
           Trạng thái
-          <select name="status">
+          <select name="status" defaultValue={params.get('status') ?? ''}>
             <option value="">Tất cả</option>
             <option value="active">Chưa kết thúc</option>
             <option value="ended">Đã kết thúc</option>
@@ -64,7 +102,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
         </label>
         <label>
           Mức độ
-          <select name="severity">
+          <select name="severity" defaultValue={params.get('severity') ?? ''}>
             <option value="">Tất cả</option>
             <option value="warning">Warning</option>
             <option value="critical">Critical</option>
@@ -72,7 +110,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
         </label>
         <label>
           Xác nhận
-          <select name="acknowledged">
+          <select name="acknowledged" defaultValue={params.get('acknowledged') ?? ''}>
             <option value="">Tất cả</option>
             <option value="false">Chưa xác nhận</option>
             <option value="true">Đã xác nhận</option>
@@ -80,14 +118,15 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
         </label>
         <label>
           Từ thời điểm
-          <input name="from" type="datetime-local" />
+          <input name="from" type="datetime-local" defaultValue={dateInputValue(params.get('from'))} />
         </label>
         <label>
           Đến thời điểm
-          <input name="to" type="datetime-local" />
+          <input name="to" type="datetime-local" defaultValue={dateInputValue(params.get('to'))} />
         </label>
         <button className="primary">Lọc sự cố</button>
       </form>
+      {filterError ? <p role="alert">{filterError}</p> : null}
       <LoadState pending={list.isPending} error={list.error} retry={() => void list.refetch()} />
       {list.data ? (
         <div className="panel table-wrap">

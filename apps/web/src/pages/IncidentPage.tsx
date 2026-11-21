@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IncidentDetail, UserView } from '@iot/contracts';
 import { api } from '../lib/api.js';
-import { PageTitle, LoadState, dateText, conditionText } from '../components/FeatureUI.js';
+import { LoadState, dateText } from '../components/FeatureUI.js';
+import { IncidentDetails } from '../features/incident-response/IncidentDetails.js';
 
 export default function IncidentPage({ user }: { user: UserView }) {
   const { id } = useParams();
@@ -34,7 +35,9 @@ export default function IncidentPage({ user }: { user: UserView }) {
   const incident = detail.data;
   return (
     <>
-      <Link to="/app/alerts">← Danh sách sự cố</Link>
+      <Link to={detail.data ? `/app/alerts?device_id=${detail.data.device_id}` : '/app/alerts'}>
+        ← Danh sách sự cố
+      </Link>
       <LoadState
         pending={detail.isPending}
         error={detail.error}
@@ -42,44 +45,10 @@ export default function IncidentPage({ user }: { user: UserView }) {
       />
       {incident ? (
         <>
-          <PageTitle title={`Sự cố ${conditionText[incident.condition]} · ${incident.device_name}`}>
-            <p>ID: {incident.id}</p>
-          </PageTitle>
+          <IncidentDetails key={`${incident.id}:${user.id}`} incident={incident} user={user} />
+          <p className="caption">Chưa thấy kết thúc chưa chắc là còn nguy hiểm, hãy kiểm tra kết nối thiết bị. Xác nhận đã xem không tắt còi.</p>
           <section className="panel feature-section">
-            <div className="button-row">
-              <span className={`badge ${incident.status === 'active' ? 'danger' : ''}`}>
-                {incident.status === 'active' ? 'Chưa kết thúc' : 'Đã kết thúc'}
-              </span>
-              <span className="badge">{incident.severity}</span>
-              {incident.source_kind === 'simulator' ? (
-                <span className="badge simulation">Dữ liệu mô phỏng</span>
-              ) : null}
-            </div>
-            <dl className="detail-grid">
-              <div>
-                <dt>Bắt đầu</dt>
-                <dd>{dateText(incident.started_at)}</dd>
-              </div>
-              <div>
-                <dt>Kết thúc</dt>
-                <dd>{dateText(incident.ended_at)}</dd>
-              </div>
-              <div>
-                <dt>Server quan sát đầu tiên</dt>
-                <dd>{dateText(incident.first_observed_at)}</dd>
-              </div>
-              <div>
-                <dt>Nguồn lịch sử</dt>
-                <dd>{incident.origin}</dd>
-              </div>
-            </dl>
-            <p className="caption">
-              Chưa thấy kết thúc chưa chắc là còn nguy hiểm, hãy kiểm tra kết nối thiết bị. Xác nhận
-              đã xem không tắt còi.
-            </p>
-          </section>
-          <section className="panel feature-section">
-            <h2>Xác nhận sự cố</h2>
+            <h2>Xác nhận nghiệp vụ</h2>
             {incident.acknowledgement ? (
               <>
                 <strong>Đã xác nhận</strong>
@@ -107,20 +76,6 @@ export default function IncidentPage({ user }: { user: UserView }) {
               </form>
             )}
             <LoadState error={acknowledge.error} />
-          </section>
-          <section className="panel feature-section">
-            <h2>Timeline sự kiện</h2>
-            <ol className="timeline">
-              {incident.events.map((event) => (
-                <li key={event.id}>
-                  <strong>{event.transition === 'started' ? 'Bắt đầu' : 'Kết thúc'}</strong>
-                  <p>Thời điểm thiết bị: {dateText(event.occurred_at)}</p>
-                  <small>
-                    Server nhận: {dateText(event.received_at)} · seq {event.seq}
-                  </small>
-                </li>
-              ))}
-            </ol>
           </section>
         </>
       ) : null}

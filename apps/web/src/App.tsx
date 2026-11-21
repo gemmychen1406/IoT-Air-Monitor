@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, Link } from 'react-router';
+import { useLocation, NavLink, Navigate, Route, Routes, Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import {
@@ -16,11 +16,14 @@ import {
   Users,
   ScrollText,
   GitCompareArrows,
+  Building2,
+  ContactRound,
 } from 'lucide-react';
 import type { DeviceView } from '@iot/contracts';
 import { api, HttpError } from './lib/api.js';
 import { createRefetchBatcher } from './lib/refetch-batcher.js';
 import { clearBrowserPush } from './lib/web-push.js';
+import { useIncidentNotices } from './features/incident-response/IncidentNotices.js';
 import LoginPage, { type SessionView } from './pages/LoginPage.js';
 import OverviewPage from './pages/OverviewPage.js';
 import SettingsPage from './pages/SettingsPage.js';
@@ -29,31 +32,48 @@ const DeviceDetailPage = lazy(() => import('./pages/DeviceDetailPage.js'));
 const MonitoringPage = lazy(() => import('./pages/MonitoringPage.js'));
 const AlertsPage = lazy(() => import('./pages/AlertsPage.js'));
 const IncidentPage = lazy(() => import('./pages/IncidentPage.js'));
+const DeliveryHistoryPage = lazy(() => import('./features/notification-center/DeliveryHistoryPage.js'));
+const EnvironmentSettingsPage = lazy(() => import('./features/notification-center/EnvironmentSettingsPage.js'));
+const NotificationSettingsPage = lazy(() => import('./features/notification-center/NotificationSettingsPage.js'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage.js'));
 const UsersPage = lazy(() => import('./pages/UsersPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
+const MonitoringSpacesPage = lazy(() => import('./features/monitoring-spaces/MonitoringSpacesPage.js'));
+const SupportContactsPage = lazy(() => import('./features/incident-response/SupportContactsPage.js'));
 const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
 const DeviceDiagnosticsPage = lazy(() => import('./features/device-diagnostics/DeviceDiagnosticsPage.js'));
 const ComparisonReportingPage = lazy(
   () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
 );
 const navigation = [
-  { path: '/app/overview', icon: LayoutDashboard, label: 'Tổng quan' },
-  { path: '/app/monitoring', icon: Radio, label: 'Giám sát trực tiếp' },
-  { path: '/app/alerts', icon: Bell, label: 'Cảnh báo & sự cố' },
-  { path: '/app/analytics', icon: ChartNoAxesCombined, label: 'Analytics & lịch sử' },
-  { path: '/app/devices', icon: Cpu, label: 'Thiết bị' },
-  { path: '/app/device-diagnostics', icon: Activity, label: 'Kiểm tra thiết bị' },
-  { path: '/app/comparison-reporting', icon: GitCompareArrows, label: 'So sánh & Báo cáo' },
-  { path: '/app/settings', icon: Settings, label: 'Cài đặt' },
-  { path: '/app/extensions', icon: Activity, label: 'Tiện ích mở rộng' },
+  {title:'Giám sát', links:[
+    {path:'overview', icon:LayoutDashboard, label:'Tổng quan'},
+    {path:'monitoring', icon:Radio, label:'Giám sát trực tiếp'},
+    {path:'alerts', icon:Bell, label:'Cảnh báo & sự cố'},
+    {path:'notifications', icon:ScrollText, label:'Lịch sử gửi'},
+  ]},
+  {title:'Không gian & thiết bị', links:[
+    {path:'spaces', icon:Building2,label:'Khu vực & phòng'},
+    {path:'device-diagnostics', icon:Activity, label:'Kiểm tra thiết bị'},
+    {path:'devices', icon:Cpu,label:'Thiết bị'},
+  ]},
+  {title:'Phân tích',links:[
+    {path:'analytics',icon:ChartNoAxesCombined,label:'Phân tích & lịch sử'},
+    {path:'comparison-reporting',icon:GitCompareArrows,label:'So sánh & báo cáo'},
+  ]},
+  {title:'Cấu hình & quản trị',links:[
+    {path:'settings',icon:Settings,label:'Cài đặt'},
+    {path:'support-contacts',icon:ContactRound,label:'Danh bạ hỗ trợ',admin:true},
+    {path:'users',icon:Users,label:'Tài khoản',admin:true},
+    {path:'audit',icon:ScrollText,label:'Nhật ký quản trị',admin:true},
+  ]},
 ];
 
 export function App() {
+  const path = useLocation().pathname;
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [connected, setConnected] = useState(false);
-  const [notice, setNotice] = useState(false);
   const [theme, setTheme] = useState(() =>
     localStorage.getItem('airguard.theme.v1') === 'light' ? 'light' : 'dark',
   );
@@ -89,10 +109,13 @@ export function App() {
   const deviceIds = devices.map((d) => d.id).join(',');
   const userId = session?.user.id;
   const expiresAt = session?.expires_at;
+  const { refresh: refreshIncidentNotices, banner: incidentBanner } = useIncidentNotices(
+    userId ? `${userId}:${expiresAt}` : undefined, path,
+  );
   useEffect(() => {
     if (sessionQuery.data === null) {
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
-      void clearBrowserPush().catch(() => {});
+
     }
   }, [sessionQuery.data, queryClient]);
   useEffect(() => {
@@ -120,9 +143,9 @@ export function App() {
       void queryClient.invalidateQueries({ queryKey: [key] });
     });
     const invalidate = batcher.request;
-    const refreshAlerts = () => invalidate('incidents', 'incident', 'alert-states');
+    const refreshAlerts = () => invalidate('incidents', 'incident', 'alert-states', 'space-map', 'area-summary');
     const refreshDevice = () =>
-      invalidate('devices', 'device', 'credentials', 'config', 'status-history');
+      invalidate('devices', 'device', 'credentials', 'config', 'status-history', 'space-map');
     socket.on('connect', () => {
       setConnected(true);
       if (deviceIds) {
@@ -131,7 +154,9 @@ export function App() {
           'devices.subscribe',
           { device_ids: ids },
           (ack: { accepted_device_ids?: string[]; error?: string }) => {
-            setConnected(!ack.error && ids.every((id) => ack.accepted_device_ids?.includes(id)));
+            const subscribed = !ack.error && ids.every((id) => ack.accepted_device_ids?.includes(id));
+            setConnected(subscribed);
+            if (subscribed) refreshIncidentNotices.current?.();
           },
         );
       }
@@ -141,6 +166,7 @@ export function App() {
         'incidents',
         'incident',
         'alert-states',
+        'space-map',
         'config',
         'credentials',
         'status-history',
@@ -151,11 +177,11 @@ export function App() {
       if (reason === 'io server disconnect') invalidate('session');
     });
     socket.on('connect_error', () => setConnected(false));
-    socket.on('telemetry.created', () => invalidate('devices', 'device', 'readings'));
+    socket.on('telemetry.created', () => invalidate('devices', 'device', 'readings', 'space-map'));
     socket.on('alert.state.changed', refreshAlerts);
     socket.on('alert.event.created', () => {
       refreshAlerts();
-      setNotice(true);
+      refreshIncidentNotices.current?.();
     });
     socket.on('alert.acknowledged', refreshAlerts);
     for (const event of [
@@ -170,7 +196,7 @@ export function App() {
       batcher.cancel();
       socket.disconnect();
     };
-  }, [userId, deviceIds, queryClient]);
+  }, [userId, deviceIds, queryClient, refreshIncidentNotices]);
   async function logout() {
     try {
       await api('/auth/logout', { method: 'POST' });
@@ -180,12 +206,12 @@ export function App() {
         return;
       }
     }
+    await clearBrowserPush().catch(() => {});
     await queryClient.cancelQueries();
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
     queryClient.setQueryData(['session'], null);
     setSelectedId('');
     setLogoutError(null);
-    setNotice(false);
   }
   if (sessionQuery.isPending)
     return (
@@ -219,24 +245,12 @@ export function App() {
           AirGuard
         </Link>
         <nav aria-label="Điều hướng chính">
-          {navigation.map(({ path, icon: Icon, label }) => (
-            <NavLink key={path} to={path}>
-              <Icon size={19} />
-              {label}
-            </NavLink>
-          ))}
-          {session.user.role === 'admin' ? (
-            <>
-              <NavLink to="/app/users">
-                <Users size={19} />
-                Tài khoản
-              </NavLink>
-              <NavLink to="/app/audit">
-                <ScrollText size={19} />
-                Nhật ký quản trị
-              </NavLink>
-            </>
-          ) : null}
+          {navigation.map(group => <div role="group" aria-label={group.title} className="nav-group" key={group.title}>
+            <span className="sidebar-label">{group.title}</span>
+            {group.links.filter(item => !('admin' in item) || session.user.role === 'admin').map(({path,icon:Icon,label}) =>
+              <NavLink key={path} to={`/app/${path}`}><Icon size={19}/>{label}</NavLink>)}
+          </div>)}
+          <NavLink to="/app/extensions"><Activity size={19}/>Tiện ích mở rộng</NavLink>
         </nav>
       </aside>
       <div className="workspace">
@@ -264,14 +278,7 @@ export function App() {
               {logoutError}
             </p>
           ) : null}
-          {notice ? (
-            <div className="notice" role="status">
-              Có cập nhật sự cố. <Link to="/app/alerts">Xem cảnh báo & sự cố</Link>
-              <button onClick={() => setNotice(false)} aria-label="Đóng thông báo">
-                Đóng
-              </button>
-            </div>
-          ) : null}
+          {incidentBanner}
           {devicesQuery.isError ? (
             <div className="notice error" role="alert">
               Không tải được dữ liệu: {devicesQuery.error.message}. <button onClick={() => void devicesQuery.refetch()}>Thử lại</button>
@@ -313,6 +320,9 @@ export function App() {
                 element={<MonitoringPage devices={devices} />}
               />
               <Route path="/app/alerts" element={<AlertsPage devices={devices} />} />
+              <Route path="/app/notifications" element={<DeliveryHistoryPage devices={devices} user={session.user} />} />
+              <Route path="/app/environment-settings" element={<EnvironmentSettingsPage devices={devices} user={session.user} />} />
+              <Route path="/app/settings/notifications" element={<NotificationSettingsPage devices={devices} user={session.user} />} />
               <Route path="/app/alerts/:id" element={<IncidentPage user={session.user} />} />
               <Route path="/app/analytics" element={<AnalyticsPage devices={devices} />} />
               <Route
@@ -321,6 +331,8 @@ export function App() {
               />
               <Route path="/app/extensions" element={<ExtensionsHub />} />
               <Route path="/app/device-diagnostics" element={<DeviceDiagnosticsPage key={session.user.id} devices={devices} userId={session.user.id} />} />
+              <Route path="/app/spaces/:areaId?" element={<MonitoringSpacesPage user={session.user} />} />
+              <Route path="/app/support-contacts" element={<SupportContactsPage user={session.user} />} />
               <Route path="/app/users" element={<UsersPage user={session.user} />} />
               <Route path="/app/audit" element={<AuditPage user={session.user} />} />
               <Route

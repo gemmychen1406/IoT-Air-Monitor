@@ -419,6 +419,10 @@ export default function DeviceDetailPage({ user }: { user: UserView }) {
         <>
           <PageTitle title={device.data.name}>
             <p>Thông tin, khóa kết nối và cấu hình của thiết bị.</p>
+            <div className="button-row">
+              <Link to={`/app/alerts?device_id=${device.data.id}`}>Xem sự cố của thiết bị</Link>
+              <Link to={`/app/monitoring/${device.data.id}`}>Giám sát trực tiếp</Link>
+            </div>
           </PageTitle>
           <Metadata device={device.data} admin={user.role === 'admin'} />
           {user.role === 'admin' ? <Credentials device={device.data} /> : null}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PushConfigView, PushSubscriptionView } from '@iot/contracts';
 import { api } from '../lib/api.js';
 import {
@@ -8,11 +8,14 @@ import {
   enableBrowserPush,
   disableBrowserPush,
 } from '../lib/web-push.js';
-import { LoadState, dateText } from './FeatureUI.js';
+import { LoadState } from './FeatureUI.js';
+import PushPrivacyPreference from '../features/notification-center/PushPrivacyPreference.js';
 
-export function PushSettings() {
+export function PushSettings({ devices = [] }: {devices?: {id:string; name:string}[]} = {}) {
+  const [selectedDevices, setSelectedDevices] = useState<string[]>();
   const [choice, setChoice] = useState<boolean | undefined>();
   const supported = supportsWebPush();
+  const client = useQueryClient();
   const settings = useQuery({
     queryKey: ['web-push-settings'],
     queryFn: async () => {
@@ -26,13 +29,18 @@ export function PushSettings() {
     },
   });
   const includeSimulators = choice ?? settings.data?.server?.include_simulators ?? false;
+  const deviceIds = selectedDevices ?? settings.data?.server?.device_ids ?? [];
+  const refreshSettings = () => Promise.all([
+    settings.refetch(),
+    client.invalidateQueries({ queryKey: ['environment-settings'] }),
+  ]);
   const enable = useMutation({
-    mutationFn: () => enableBrowserPush(settings.data!.config.public_key!, includeSimulators),
-    onSuccess: () => settings.refetch(),
+    mutationFn: () => enableBrowserPush(settings.data!.config.public_key!, includeSimulators, deviceIds),
+    onSuccess: refreshSettings,
   });
   const disable = useMutation({
     mutationFn: disableBrowserPush,
-    onSuccess: () => settings.refetch(),
+    onSuccess: refreshSettings,
   });
   const active =
     !!settings.data?.server &&
@@ -69,7 +77,7 @@ export function PushSettings() {
           <p role="status">
             {active
               ? 'Đang nhận thông báo trên trình duyệt này'
-              : 'Chưa đăng ký nhận thông báo cho phiên này'}
+              : 'Chưa đăng ký nhận thông báo cho trình duyệt này'}
           </p>
           {Notification.permission === 'denied' ? (
             <p className="notice">
@@ -77,6 +85,10 @@ export function PushSettings() {
               lại trang; ứng dụng không thể tự bỏ chặn.
             </p>
           ) : null}
+          {devices.length > 0 && <details><summary>Thiết bị nhận cảnh báo · {deviceIds.length || 'Tất cả'}</summary>
+            <p>Để trống để nhận từ tất cả thiết bị.</p>{devices.map(d => <label className="check-label" key={d.id}>
+              <input type="checkbox" checked={deviceIds.includes(d.id)} onChange={e => setSelectedDevices(e.target.checked ? [...deviceIds,d.id] : deviceIds.filter(id => id !== d.id))}/>{d.name}
+            </label>)}</details>}
           <label className="check-label">
             <input
               type="checkbox"
@@ -105,15 +117,14 @@ export function PushSettings() {
           </div>
           {active ? (
             <p className="caption">
-              Hiệu lực tới khi phiên hết hạn: {dateText(settings.data.server?.expires_at)}. Đăng
-              xuất hoặc thu hồi phiên sẽ hủy đăng ký; đăng nhập lại cần bật lại.
+              {settings.data.server?.expires_at ? 'Đăng ký cũ theo phiên. Bấm Lưu tùy chọn Web Push để chuyển sang nhận lâu dài.' : 'Vẫn nhận sau khi phiên hết hạn. Tắt Web Push hoặc đăng xuất để ngắt trình duyệt này.'}
             </p>
           ) : null}
         </>
       ) : null}
+      <PushPrivacyPreference />
       <p className="caption">
-        Chỉ xin quyền sau khi bạn bấm bật. Thông báo màn hình khóa không chứa tên/vị trí thiết bị
-        hay số đo; bấm để mở chi tiết, ứng dụng vẫn kiểm tra đăng nhập. Đổi khóa VAPID cần đăng ký
+        Chỉ xin quyền sau khi bạn bấm bật. Mở sự cố từ thông báo vẫn cần đăng nhập. Đổi khóa VAPID cần đăng ký
         lại. Hệ điều hành có thể chặn/hoãn thông báo; đóng hoàn toàn trình duyệt không bảo đảm nhận
         được.
       </p>

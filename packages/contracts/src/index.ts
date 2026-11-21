@@ -127,3 +127,7 @@ export * from './users.js';
 export * from './push.js';
 export * from './gas-level.js';
 export * from './device-diagnostics.js';
+export * from './monitoring-spaces.js';
+export * from './incident-response.js';
+export * from './alert-delivery.js';
+export * from './environment.js';

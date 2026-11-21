@@ -126,7 +126,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('durable Telegram notifications'
     expect(results.every((r) => r.processed)).toBe(true);
     expect(new Set(results.flatMap((r) => (r.processed ? [r.notificationId] : []))).size).toBe(2);
     expect(messages).toHaveLength(2);
-    expect(messages.every((text) => text.includes('MÔ PHỎNG') && text.includes('Sự cố'))).toBe(
+    expect(messages.every((text) => text.includes('MÔ PHỎNG') && /Phát hiện lửa|Phát hiện khí gas|Cảnh báo CO/.test(text))).toBe(
       true,
     );
     const third = await db.telegramNotification.findFirstOrThrow({ where: { status: 'pending' } });
@@ -323,7 +323,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('durable Telegram notifications'
       false,
     );
     expect(result.processed).toBe(true);
-    expect(text).toContain('WARNING');
+    expect(text).toContain('CẢNH BÁO');
     expect(text).toContain('Telegram physical fixture');
     expect(text).not.toContain('MÔ PHỎNG');
   });

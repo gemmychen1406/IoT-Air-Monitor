@@ -35,6 +35,7 @@ const runtime = createRuntime(db, config.origin, {
     process.env.NODE_ENV === 'production' || new URL(config.origin).protocol === 'https:',
   onRequest: (entry) => log.info(entry, 'http_request'),
   onFailure: (entry) => log.error(entry, 'request_failed'),
+  reminderSeconds: config.reminderSeconds,
   telegram: config.telegram,
   webPush: config.webPush,
   onNotification: (entry) =>

@@ -26,7 +26,9 @@ export async function apiPage<T>(path: string, options: RequestInit = {}): Promi
   if (response.status === 204) return { data: undefined as T, meta: {} };
   const body = (await response.json()) as ApiPage<T> & { error?: { message: string } };
   if (!response.ok)
-    throw new HttpError(response.status, body.error?.message ?? 'Không thể liên lạc API.');
+    throw new HttpError(response.status, response.status >= 500
+      ? `${body.error?.message ?? 'Lỗi máy chủ'} (HTTP ${response.status})${body.meta?.request_id ? ' · Mã yêu cầu ' + body.meta.request_id : ''}. Hãy thử lại.`
+      : body.error?.message ?? 'Không thể liên lạc API.');
   return body;
 }
 

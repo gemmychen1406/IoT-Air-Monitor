@@ -76,7 +76,7 @@ export async function runMaintenance(
           ],
         },
       });
-      await tx.session.deleteMany({ where: { expiresAt: { lt: now } } });
+      await tx.session.deleteMany({ where: { expiresAt: { lt: now }, OR: [{pushSubscription:null},{pushSubscription:{browserHash:null}}] } });
       const prunedAudit =
         await tx.$executeRaw`DELETE FROM audit_logs WHERE id IN (SELECT id FROM audit_logs WHERE created_at < ${auditCutoff} ORDER BY id LIMIT ${batchSize})`;
       const prunedStatus =

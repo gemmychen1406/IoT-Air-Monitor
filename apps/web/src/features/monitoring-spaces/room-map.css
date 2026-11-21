@@ -1,0 +1,294 @@
+.ag-room-map {
+  container-type: inline-size;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+.ag-map-header,
+.ag-map-room header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+.ag-map-header h2,
+.ag-map-header p,
+.ag-map-room h3 {
+  margin: 0;
+}
+.ag-map-header p,
+.ag-map-room header > span {
+  color: var(--muted);
+}
+.ag-map-header label {
+  min-width: min(100%, 15rem);
+}
+.ag-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.ag-map-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+.ag-map-legend .ag-map-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+.ag-map-workspace,
+.ag-map-grid {
+  display: grid;
+  gap: 0.9rem;
+  align-items: start;
+}
+.ag-map-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 16rem);
+}
+.ag-map-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.ag-map-room,
+.ag-map-detail {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem;
+  min-width: 0;
+}
+.ag-map-room[data-archived='true'] {
+  border-style: dashed;
+}
+.ag-map-room h3 {
+  overflow-wrap: anywhere;
+}
+.ag-map-canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(100% - 1.8rem);
+  min-width: 0;
+  aspect-ratio: 1.65;
+  margin: 1.25rem 0.9rem;
+  outline: 1px solid var(--border);
+  border-radius: 6px;
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.ag-map-canvas > p {
+  color: var(--muted);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  margin: 0;
+  text-align: center;
+}
+.ag-map-dot {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  color: var(--map-ink, #fff);
+  background: var(--map-tone, #596879);
+}
+.ag-room-map [data-tone='danger'] {
+  --map-tone: #b91c1c;
+}
+.ag-room-map [data-tone='attention'] {
+  --map-tone: #f5bf47;
+  --map-ink: #291b05;
+}
+.ag-room-map [data-tone='normal'] {
+  --map-tone: #137549;
+}
+.ag-room-map [data-tone='unknown'] {
+  --map-tone: #596879;
+}
+.ag-map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.ag-map-pin[aria-pressed='true'] {
+  z-index: 1;
+}
+.ag-map-pin[aria-pressed='true'] .ag-map-dot {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ag-map-device-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-map-pin .ag-map-device-name {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.ag-map-pin[data-edge='left'] .ag-map-device-name {
+  left: 0;
+  transform: none;
+}
+.ag-map-pin[data-edge='right'] .ag-map-device-name {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.ag-map-pin[data-high='true'] .ag-map-device-name {
+  top: auto;
+  bottom: calc(100% + 2px);
+}
+.ag-map-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  justify-content: center;
+  cursor: crosshair;
+  background: transparent;
+  border: 1px dashed var(--accent);
+}
+.ag-map-surface span {
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+}
+.ag-map-preview {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  color: var(--accent);
+  pointer-events: none;
+}
+.ag-map-unplaced {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+.ag-map-unplaced button {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.ag-map-unplaced small {
+  color: var(--muted);
+}
+.ag-map-detail h3 {
+  margin: 0.35rem 0 0.7rem;
+  overflow-wrap: anywhere;
+}
+.ag-map-detail p {
+  margin: 0.6rem 0;
+}
+.ag-map-details-status,
+.ag-map-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.ag-map-state {
+  color: var(--map-ink, #fff);
+  background: var(--map-tone);
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.8rem;
+}
+.ag-map-readings {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+}
+.ag-map-readings dt {
+  color: var(--muted);
+}
+.ag-map-readings dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.ag-map-links {
+  margin-top: 0.85rem;
+  flex-direction: column;
+}
+.ag-map-thresholds {
+  margin-top: 1rem;
+}
+.ag-map-threshold-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  align-items: end;
+  gap: 0.65rem;
+}
+@container (max-width: 56rem) {
+  .ag-map-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 36rem) {
+  .ag-map-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ag-map-room {
+  overflow-wrap: anywhere;
+}
+.ag-map-room select {
+  max-width: 100%;
+  min-width: 0;
+}
+.ag-map-unplaced .ag-map-device-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ag-incident-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.45rem;
+  font-weight: 600;
+  background: #fde68a;
+  color: #422006;
+}
+.ag-incident-action[data-severity='critical'] {
+  background: #991b1b;
+  color: white;
+}
+.ag-map-details-status details a {
+  display: flex;
+  margin-top: 0.35rem;
+}
+
+.ag-map-grid > .ag-map-room:only-child { grid-column: 1 / -1; }
+.ag-map-readings dt[data-alert], .ag-map-readings dt[data-alert] + dd {
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, #e78424 23%, var(--panel));
+}
+.ag-map-readings dt[data-alert='critical'], .ag-map-readings dt[data-alert='critical'] + dd {
+  background: color-mix(in srgb, #e64b55 26%, var(--panel));
+}
