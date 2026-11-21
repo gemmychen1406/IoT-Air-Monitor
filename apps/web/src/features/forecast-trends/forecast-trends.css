@@ -290,3 +290,21 @@
 /* Explain the independently selected model below each prediction card. */
 .ft-model-caption { margin: 0.3rem 0 0; color: var(--text-muted, var(--muted)); font-size: 0.85rem; line-height: 1.45; }
 .ft-model-caption strong { color: var(--text, inherit); font-weight: 650; }
+
+/* Room-first scenario layout: retains the earlier 4-room demo's clear summary,
+   but the results come only from the selected shared-system stations. */
+.ft-spread-note { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); border-radius: 10px; padding: 12px 15px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.ft-spread-note svg { flex: 0 0 auto; margin-top: 2px; }
+.ft-spread-note strong { color: var(--text); }
+.ft-spread-door-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.ft-spread-room-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; }
+.ft-spread-room { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 12px; }
+.ft-spread-room.ft-spread-room-source { border-color: #eab665; }
+.ft-spread-room > .ft-micro-room-heading { margin-bottom: 3px; }
+.ft-spread-room-station { display: grid; gap: 8px; padding: 12px 11px; border: 1px solid var(--border); border-radius: 9px; min-width: 0; }
+.ft-spread-room-station-source { background: color-mix(in srgb, #f59e0b 6%, var(--panel)); }
+.ft-spread-room-station .ft-spread-card-top { overflow-wrap: anywhere; }
+.ft-spread-room-station small { color: var(--muted); line-height: 1.5; }
+.ft-spread-room-station .ft-micro-prediction { font-size: 18px; }
+@media (max-width: 1120px) { .ft-spread-room-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 760px) { .ft-spread-room-grid, .ft-spread-door-controls { grid-template-columns: 1fr; } }
