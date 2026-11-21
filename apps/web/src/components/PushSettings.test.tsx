@@ -107,6 +107,7 @@ it('asks permission only after an explicit click and supports enabling/disabling
   const enable = await screen.findByRole('button', { name: 'Bật Web Push' });
   expect(state.prompted()).toBe(0);
   fireEvent.click(enable);
+  expect(state.prompted()).toBe(1);
   await waitFor(() => expect(state.serverSubscribed()).toBe(true));
   expect(
     await screen.findByText('Đang nhận thông báo trên trình duyệt này', { exact: true }),

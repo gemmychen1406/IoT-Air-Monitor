@@ -49,6 +49,8 @@ Trước khi chạy E2E, dùng `npx playwright install chromium` hoặc đặt `
 
 ## Dữ liệu và triển khai
 
+Xem [hướng dẫn kích hoạt Web Push và mời thành viên vào Telegram theo gia đình](CAU_HINH_CANH_BAO_GIA_DINH.md).
+
 - PostgreSQL dùng chung lưu tài khoản, phiên, thiết bị, khóa, phòng và vị trí, số đo, sự cố, xác nhận và lịch sử gửi. Giám sát trực tiếp nhận sự kiện qua namespace `/monitoring` rồi đọc lại API. Chẩn đoán, phân tích, so sánh và dự báo hệ thống dùng dữ liệu từ API.
 - Trình duyệt lưu giao diện, mục tiêu Eco-Score, công việc của module thông minh, tùy chọn chẩn đoán và cấu hình so sánh đã lưu. Nút quạt/cửa sổ/hút ẩm và biểu đồ theo giờ của module thông minh là mô phỏng. Dự báo có chế độ thử nghiệm bốn phòng tách khỏi dữ liệu hệ thống.
 - **Vercel** dùng gốc monorepo, install `npm ci --include=dev`, build `npm run build -w @iot/web`, output `apps/web/dist`. Theo `vercel.json`, `/api/:path*` và `/socket.io/:path*` đi tới cùng đường dẫn tại `https://iot-air-monitor-production.up.railway.app`; các route SPA trả `index.html`. Frontend gọi `/api/v1` cùng origin và dùng Socket.IO polling ở bản production.

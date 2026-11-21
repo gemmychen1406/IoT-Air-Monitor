@@ -1,4 +1,4 @@
-export type TelegramConfig = { token: string; chatId: string; includeSimulators: boolean };
+export type TelegramConfig = { token: string; chatId: string; includeSimulators: boolean; inviteUrl?: string };
 export type TelegramResult =
   { ok: true } | { ok: false; retryable: boolean; code: string; retryAfterSeconds?: number };
 export async function sendTelegram(

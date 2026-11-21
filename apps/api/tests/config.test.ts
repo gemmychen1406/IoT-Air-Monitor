@@ -40,9 +40,11 @@ it('disables Telegram by default and requires complete explicit credentials when
       TELEGRAM_ENABLED: 'true',
       TELEGRAM_BOT_TOKEN: '123456789:abcdefghijklmnopqrstuvwxyz_123456789',
       TELEGRAM_CHAT_ID: '-1001234567890',
+      TELEGRAM_GROUP_INVITE_URL: 'https://t.me/+household_fixture',
       TELEGRAM_INCLUDE_SIMULATORS: 'true',
     }),
-  ).toMatchObject({ telegram: { chatId: '-1001234567890', includeSimulators: true } });
+  ).toMatchObject({ telegram: { chatId: '-1001234567890', includeSimulators: true, inviteUrl: 'https://t.me/+household_fixture' } });
+  expect(() => parseConfig({ ...base, TELEGRAM_GROUP_INVITE_URL: 'https://example.org/+elsewhere' })).toThrow();
 });
 it('binds loopback by default and accepts only an exact web origin', () => {
   const config = parseConfig({

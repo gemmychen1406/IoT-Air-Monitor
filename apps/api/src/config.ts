@@ -22,6 +22,9 @@ export function parseConfig(env: Record<string, string | undefined>) {
       TELEGRAM_ENABLED: z.enum(['true', 'false']).default('false'),
       TELEGRAM_BOT_TOKEN: z.string().optional(),
       TELEGRAM_CHAT_ID: z.string().optional(),
+      TELEGRAM_GROUP_INVITE_URL: z.string().trim()
+        .regex(/^https:\/\/t\.me\/(?:\+|joinchat\/)[A-Za-z0-9_-]+$/, 'Cần link mời nhóm riêng dạng https://t.me/+…')
+        .optional(),
       TELEGRAM_INCLUDE_SIMULATORS: z.enum(['true', 'false']).default('false'),
       WEB_PUSH_ENABLED: z.enum(['true', 'false']).default('false'),
       WEB_PUSH_VAPID_PUBLIC_KEY: z.string().optional(),
@@ -101,6 +104,7 @@ export function parseConfig(env: Record<string, string | undefined>) {
         ? {
             token: input.TELEGRAM_BOT_TOKEN!,
             chatId: input.TELEGRAM_CHAT_ID!,
+            inviteUrl: input.TELEGRAM_GROUP_INVITE_URL,
             includeSimulators: input.TELEGRAM_INCLUDE_SIMULATORS === 'true',
           }
         : undefined,

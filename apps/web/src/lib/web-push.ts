@@ -34,15 +34,15 @@ export async function browserPushStatus() {
     publicKey: sub.options.applicationServerKey ? base64(sub.options.applicationServerKey) : null,
   };
 }
-export async function enableBrowserPush(publicKey: string, includeSimulators: boolean, deviceIds: string[] = []) {
+export async function enableBrowserPush(
+  publicKey: string,
+  includeSimulators: boolean,
+  deviceIds: string[],
+  permissionRequest: Promise<NotificationPermission>,
+) {
   if (!supportsWebPush())
     throw new Error('Web Push cần HTTPS hoặc localhost và trình duyệt có hỗ trợ.');
-  const permission =
-    Notification.permission === 'granted'
-      ? 'granted'
-      : Notification.permission === 'denied'
-        ? 'denied'
-        : await Notification.requestPermission();
+  const permission = await permissionRequest;
   if (permission !== 'granted')
     throw new Error('Chưa được cấp quyền thông báo. Kiểm tra quyền của trang trong trình duyệt.');
   const row = await navigator.serviceWorker.register('/push-sw.js', {

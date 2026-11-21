@@ -15,6 +15,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('durable Telegram notifications'
     f = await featureFixture(db, app, 'telegram');
   });
   afterAll(() => db.$disconnect());
+  it('shares only the configured household invite with signed-in members', async () => {
+    const invite = 'https://t.me/+test_invite';
+    const path = '/api/v1/telegram/group';
+    const family = createApp({ ...options, environment: { telegram: true, telegramSimulators: false }, telegramInviteUrl: invite });
+    expect((await request(family).get(path)).status).toBe(401);
+    const member = await request(family).get(path).set(f.headers.viewer!);
+    expect(member.body.data).toEqual({ enabled: true, invite_url: invite });
+    expect(member.headers['cache-control']).toBe('no-store');
+    const disabled = await request(app).get(path).set(f.headers.viewer!);
+    expect(disabled.body.data).toEqual({ enabled: false, invite_url: null });
+    const noInvite = createApp({ ...options, environment: { telegram: true, telegramSimulators: false } });
+    expect((await request(noInvite).get(path).set(f.headers.viewer!)).body.data)
+      .toEqual({ enabled: true, invite_url: null });
+  });
   const send = (p: ReturnType<typeof f.payload>) =>
     request(app).post('/api/v1/device/telemetry').set(f.deviceHeaders).send(p);
   it('queues warning/critical once per incident and severity, never once per telemetry retry', async () => {

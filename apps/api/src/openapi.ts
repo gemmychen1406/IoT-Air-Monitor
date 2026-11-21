@@ -76,6 +76,9 @@ export const openapi = {
       'Local: auth/RBAC, thiết bị/key/config, raw telemetry, incident/event/acknowledgement, analytics và CSV. Web dùng cookie HttpOnly; mọi request ghi của web (kể cả login) cần X-Requested-With: AirGuard và Origin thuộc allowlist. Chưa có firmware, calibrated PPM hoặc cloud. Khoảng lọc [from,to), tối đa 90 ngày; chi tiết semantic tại docs/api/monitoring.md.',
   },
   paths: {
+    '/api/v1/telegram/group': {
+      get: operation('Trạng thái kênh và link mời nhóm gia đình cho thành viên đã đăng nhập'),
+    },
     '/api/v1/push/config': {
       get: operation('Web Push enabled/public VAPID key; yêu cầu đăng nhập, không trả private key'),
     },

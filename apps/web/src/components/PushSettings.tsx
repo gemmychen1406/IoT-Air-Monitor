@@ -35,7 +35,8 @@ export function PushSettings({ devices = [] }: {devices?: {id:string; name:strin
     client.invalidateQueries({ queryKey: ['environment-settings'] }),
   ]);
   const enable = useMutation({
-    mutationFn: () => enableBrowserPush(settings.data!.config.public_key!, includeSimulators, deviceIds),
+    mutationFn: (permission: Promise<NotificationPermission>) =>
+      enableBrowserPush(settings.data!.config.public_key!, includeSimulators, deviceIds, permission),
     onSuccess: refreshSettings,
   });
   const disable = useMutation({
@@ -52,8 +53,8 @@ export function PushSettings({ devices = [] }: {devices?: {id:string; name:strin
     <section className="panel feature-section" aria-label="Web Push">
       <h2>Thông báo Web Push</h2>
       <p>
-        Cảnh báo warning/critical trên trình duyệt đã đăng ký; có thể nhận khi đóng tab nếu trình
-        duyệt/hệ điều hành hỗ trợ. Không thay thế còi cục bộ.
+        Để nhận cảnh báo trên thiết bị này, bấm Bật Web Push rồi chọn Cho phép khi trình duyệt hỏi.
+        Lặp lại trên mỗi trình duyệt bạn muốn nhận tin. Có thể nhận khi đóng tab nếu hệ điều hành hỗ trợ.
       </p>
       <LoadState
         pending={settings.isPending}
@@ -63,7 +64,8 @@ export function PushSettings({ devices = [] }: {devices?: {id:string; name:strin
       {!supported ? (
         <p className="notice">
           Trình duyệt hoặc ngữ cảnh này chưa hỗ trợ Web Push. Dùng HTTPS hoặc localhost trên trình
-          duyệt hỗ trợ; HTTP qua IP LAN không đủ.
+          duyệt hỗ trợ. Trên iPhone hoặc iPad từ phiên bản 16.4, chọn Chia sẻ → Thêm vào Màn hình
+          chính, mở AirGuard từ biểu tượng vừa thêm rồi bật thông báo.
         </p>
       ) : null}
       {settings.data && !settings.data.config.enabled ? (
@@ -103,7 +105,13 @@ export function PushSettings({ devices = [] }: {devices?: {id:string; name:strin
               disabled={
                 enable.isPending || disable.isPending || Notification.permission === 'denied'
               }
-              onClick={() => enable.mutate()}
+              onClick={() => {
+                // Safari requires the permission prompt to originate in the button's click handler.
+                const permission = Notification.permission === 'default'
+                  ? Notification.requestPermission()
+                  : Promise.resolve(Notification.permission);
+                enable.mutate(permission);
+              }}
             >
               {active ? 'Lưu tùy chọn Web Push' : 'Bật Web Push'}
             </button>

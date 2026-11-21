@@ -44,6 +44,7 @@ export function createApp({
   notify,
   webPush,
   environment,
+  telegramInviteUrl,
 }: {
   db: Database;
   origin: string;
@@ -56,6 +57,7 @@ export function createApp({
   notify?: AlertNotifier;
   webPush?: WebPushConfig;
   environment?: EnvironmentAvailability;
+  telegramInviteUrl?: string;
 }) {
   const app = express();
   const origins = allowedWebOrigins(origin);
@@ -215,6 +217,10 @@ export function createApp({
     next();
   };
   const features = express.Router();
+  features.get('/telegram/group', (_req, res) => {
+    const enabled = environment?.telegram ?? false;
+    reply(res, { enabled, invite_url: enabled ? telegramInviteUrl ?? null : null });
+  });
   const context = { db, reply, admin, operator, publish: onEvent, notify };
   registerDevices(features, context);
   registerAlerts(features, context);

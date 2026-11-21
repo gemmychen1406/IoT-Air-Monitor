@@ -42,6 +42,7 @@ export function createRuntime(
     ...logging,
     webPush: logging.webPush,
     environment,
+    telegramInviteUrl: logging.telegram?.inviteUrl,
     notify:
       logging.telegram || logging.webPush
         ? async (tx, incident) => {
