@@ -18,6 +18,7 @@ import {
   GitCompareArrows,
   Building2,
   ContactRound,
+  Sparkles,
 } from 'lucide-react';
 import type { DeviceView } from '@iot/contracts';
 import { api, HttpError } from './lib/api.js';
@@ -42,6 +43,7 @@ const MonitoringSpacesPage = lazy(() => import('./features/monitoring-spaces/Mon
 const SupportContactsPage = lazy(() => import('./features/incident-response/SupportContactsPage.js'));
 const ExtensionsHub = lazy(() => import('./features/airguard-extensions/ExtensionsHub.js'));
 const DeviceDiagnosticsPage = lazy(() => import('./features/device-diagnostics/DeviceDiagnosticsPage.js'));
+const SmartMonitoringHub = lazy(() => import('./features/smart-monitoring/SmartMonitoringHub.js'));
 const ComparisonReportingPage = lazy(
   () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
 );
@@ -49,6 +51,7 @@ const navigation = [
   {title:'Giám sát', links:[
     {path:'overview', icon:LayoutDashboard, label:'Tổng quan'},
     {path:'monitoring', icon:Radio, label:'Giám sát trực tiếp'},
+    {path:'smart-monitoring', icon:Sparkles, label:'Giám sát thông minh'},
     {path:'alerts', icon:Bell, label:'Cảnh báo & sự cố'},
     {path:'notifications', icon:ScrollText, label:'Lịch sử gửi'},
   ]},
@@ -320,6 +323,10 @@ export function App() {
                 element={<MonitoringPage devices={devices} />}
               />
               <Route path="/app/alerts" element={<AlertsPage devices={devices} />} />
+              <Route
+                path="/app/smart-monitoring"
+                element={<SmartMonitoringHub devices={devices} />}
+              />
               <Route path="/app/notifications" element={<DeliveryHistoryPage devices={devices} user={session.user} />} />
               <Route path="/app/environment-settings" element={<EnvironmentSettingsPage devices={devices} user={session.user} />} />
               <Route path="/app/settings/notifications" element={<NotificationSettingsPage devices={devices} user={session.user} />} />

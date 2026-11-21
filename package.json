@@ -27,6 +27,7 @@
     "db:migrate": "node --env-file=.env node_modules/prisma/build/index.js migrate deploy",
     "admin:create": "tsx --env-file=.env apps/api/src/scripts/create-admin.ts",
     "simulate": "tsx --env-file=.env tools/device-simulator/src/main.ts",
+    "simulate:all": "tsx --env-file=.env tools/device-simulator/src/multi-device.ts",
     "db:backup": "tsx --env-file=.env tools/operations/main.ts backup",
     "db:restore": "tsx --env-file=.env tools/operations/main.ts restore",
     "db:maintenance": "tsx --env-file=.env tools/operations/main.ts maintenance",
