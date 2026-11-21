@@ -46,6 +46,17 @@ export function chooseByMae(rows: readonly ValidationRow[], metric: Measure): Va
     complete.reduce((best, row) => row.mae! < best.mae! ? row : best);
 }
 
+/** A tie-break can pick a *slightly* higher MAE, so do not claim it is the minimum. */
+export function describeMaeChoice(
+  picked: ValidationRow, rows: readonly ValidationRow[], metric: Measure, horizon: 15 | 30,
+): string {
+  const minObserved = Math.min(...rows.filter((row) => row.mae !== null).map((row) => row.mae!));
+  const detail = picked.mae! <= minObserved + 1e-9
+    ? 'có MAE thấp nhất'
+    : 'có MAE gần mức thấp nhất';
+  return `Chọn ${MODEL_LABELS[picked.model]} vì ${detail}: ${pretty(picked.mae!, metric)} (đối chiếu ${picked.pairs} mốc +${horizon} phút).`;
+}
+
 /**
  * Never trains on future readings. walkForward builds train/test windows whose
  * observation at the target time is excluded from the input for that origin.
@@ -76,12 +87,12 @@ export function selectForecastModel(
   const best = chooseByMae(rows, metric);
   if (best !== null) return {
     ...base, model: best.model, basis: 'mae', pairs: best.pairs, mae: best.mae,
-    explanation: `Tự chọn ${MODEL_LABELS[best.model]} theo sai số MAE lịch sử ${pretty(best.mae!, metric)} qua ${best.pairs} mốc đối chiếu ở khoảng +${horizon} phút. Khi sai số gần nhau, ưu tiên mô hình đơn giản hơn.`,
+    explanation: describeMaeChoice(best, rows, metric, horizon),
   };
 
   const fallback: ForecastModel = status === 'watch' ? 'holt' : 'naive';
   return {
     ...base, model: fallback, basis: 'fallback', pairs: Number.isFinite(pairs) ? pairs : 0, mae: null,
-    explanation: `Tự chọn ${MODEL_LABELS[fallback]} theo quy tắc dự phòng: chưa đủ ${CFG.validationMinimumPairs} mốc đối chiếu (${Number.isFinite(pairs) ? pairs : 0}/${CFG.validationMinimumPairs}); ${status === 'watch' ? 'chỉ số đang biến động liên tục vượt ngưỡng.' : status === 'normal' ? 'chỉ số chưa có biến động liên tục vượt ngưỡng.' : 'chưa đủ mẫu liên tục để đánh giá biến động.'}`,
+    explanation: `Chọn ${MODEL_LABELS[fallback]} tạm thời vì ${status === 'watch' ? 'chỉ số đang biến động liên tục' : status === 'normal' ? 'chỉ số chưa có biến động vượt ngưỡng' : 'chưa đủ mẫu liên tục để kết luận biến động'} (mới có ${Number.isFinite(pairs) ? pairs : 0}/${CFG.validationMinimumPairs} mốc đối chiếu).`,
   };
 }

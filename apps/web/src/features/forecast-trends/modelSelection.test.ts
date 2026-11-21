@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseByMae, selectForecastModel } from './modelSelection.js';
+import { chooseByMae, describeMaeChoice, selectForecastModel } from './modelSelection.js';
 import { evaluateDhtMetricStatus } from './dhtAdvisory.js';
 import { forecastMeasure } from './forecasting.js';
 import { series, START, mins } from './testHelpers.js';
@@ -38,6 +38,25 @@ describe('automatic forecast selection - independently by metric and horizon', (
     expect(chooseByMae(rows('temperature', [0.40, 0.37, 0.36]), 'temperature')?.model).toBe('naive');
     expect(chooseByMae(rows('temperature', [0.40, 0.34, 0.33]), 'temperature')?.model).toBe('linear');
     expect(chooseByMae(rows('temperature', [0.40, 0.37, 0.25]), 'temperature')?.model).toBe('holt');
+  });
+
+  it('does not claim lowest MAE if tie-break selects a slightly worse simple model', () => {
+    const historical = rows('temperature', [0.40, 0.37, 0.36]);
+    const picked = chooseByMae(historical, 'temperature')!;
+    expect(picked.model).toBe('naive');
+    const reason = describeMaeChoice(picked, historical, 'temperature', 15);
+    expect(reason).toContain('MAE gần mức thấp nhất');
+    expect(reason).not.toContain('MAE thấp nhất');
+    expect(reason).toContain('48 mốc +15 phút');
+  });
+
+  it('reports lowest MAE only when the chosen model actually has the minimum', () => {
+    const historical = rows('humidity', [3.0, 2.5, 1.5]);
+    const picked = chooseByMae(historical, 'humidity')!;
+    const reason = describeMaeChoice(picked, historical, 'humidity', 30);
+    expect(picked.model).toBe('holt');
+    expect(reason).toContain('MAE thấp nhất');
+    expect(reason).toContain('1,50 %RH');
   });
 
   it('requires minimum gain at exactly the 0.05 °C / 0.2 %RH boundaries', () => {

@@ -43,6 +43,14 @@ const models: { id: ForecastSelection; label: string }[] = [
 const fmt = (value: number | null | undefined, digits = 1) => value === null || value === undefined ? '—' : value.toLocaleString('vi-VN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const fmtTime = (time: number | null | undefined) => time === null || time === undefined ? 'Chưa có' : new Date(time).toLocaleString('vi-VN');
 const emptyPoints: MinuteReading[] = [];
+// Chi hien muc chenh lech tren bieu do khi co du bao hop le.
+function forecastDeltaText(item: ReturnType<typeof forecastMeasure>, unit: string, horizon: 15 | 30) {
+  const last = item.points.at(-1);
+  if (item.status !== 'eligible' || item.current === null || !last) return null;
+  const delta = last.value - item.current;
+  return `${delta >= 0 ? '+' : ''}${fmt(delta)} ${unit} sau ${horizon} phút`;
+}
+
 
 function CurrentCard({ title, metric, unit, trend, latestValue, freshness, historical }: {
   title: string; metric: 'temperature_c' | 'humidity_pct'; unit: string;
@@ -215,9 +223,9 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
               </article>;
             })}
           </div>
-          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo nhiệt độ</h2><span className="ft-muted">Từ mẫu mới nhất tới +{horizon} phút. Các điểm tương lai chưa có số đo thực tế.</span></div>
+          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo nhiệt độ</h2><span className="ft-muted">{forecastDeltaText(forecast.temperature, '°C', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
             <PredictionChart points={points} metric="temperature" result={forecast} /></section>
-          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo độ ẩm</h2><span className="ft-muted">Từ mẫu mới nhất tới +{horizon} phút. Các điểm tương lai chưa có số đo thực tế.</span></div>
+          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo độ ẩm</h2><span className="ft-muted">{forecastDeltaText(forecast.humidity, '%RH', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
             <PredictionChart points={points} metric="humidity" result={forecast} /></section>
           <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>
             {advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail.replace('biến đổi nhanh', 'biến đổi liên tục')}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}

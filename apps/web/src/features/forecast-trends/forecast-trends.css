@@ -4,6 +4,17 @@
 .ft-page .ft-title { margin-bottom: 0; gap: 16px; }
 .ft-page .ft-title p { color: var(--muted); margin-bottom: 0; }
 .ft-page .ft-device-select { min-width: min(340px, 100%); }
+/* Canh mui ten cua dropdown trong Forecast, khong thay doi styles.css dung chung. */
+.ft-page select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+}
+
 .ft-tabs { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
 .ft-tabs button { font-size: 13px; padding: 11px 15px; white-space: nowrap; }
 .ft-tabs button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); border-color: var(--accent); }
