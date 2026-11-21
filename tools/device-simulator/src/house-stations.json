@@ -1,0 +1,74 @@
+[
+  {
+    "station": "STOVE",
+    "room": "Bếp",
+    "label": "Bếp · Gần bếp nấu",
+    "base": [28, 58, 780, 470],
+    "x": 0.18,
+    "y": 0.25
+  },
+  {
+    "station": "KITCHEN_CENTER",
+    "room": "Bếp",
+    "label": "Bếp · Giữa bếp",
+    "base": [27, 57, 630, 420],
+    "x": 0.52,
+    "y": 0.74
+  },
+  {
+    "station": "KITCHEN_DOOR",
+    "room": "Bếp",
+    "label": "Bếp · Gần cửa",
+    "base": [26, 55, 490, 370],
+    "x": 0.84,
+    "y": 0.35
+  },
+  {
+    "station": "LIVING_WINDOW",
+    "room": "Phòng khách",
+    "label": "Phòng khách · Gần cửa sổ",
+    "base": [25, 53, 370, 310],
+    "x": 0.18,
+    "y": 0.25
+  },
+  {
+    "station": "LIVING_CENTER",
+    "room": "Phòng khách",
+    "label": "Phòng khách · Khu vực sinh hoạt",
+    "base": [26, 55, 450, 340],
+    "x": 0.52,
+    "y": 0.74
+  },
+  {
+    "station": "LIVING_DOOR",
+    "room": "Phòng khách",
+    "label": "Phòng khách · Gần cửa thông sang bếp",
+    "base": [26.5, 56, 510, 380],
+    "x": 0.84,
+    "y": 0.35
+  },
+  {
+    "station": "BED",
+    "room": "Phòng ngủ",
+    "label": "Phòng ngủ · Gần giường",
+    "base": [26, 58, 410, 350],
+    "x": 0.18,
+    "y": 0.25
+  },
+  {
+    "station": "BED_CENTER",
+    "room": "Phòng ngủ",
+    "label": "Phòng ngủ · Giữa phòng",
+    "base": [25.5, 57, 390, 340],
+    "x": 0.52,
+    "y": 0.74
+  },
+  {
+    "station": "BED_WINDOW",
+    "room": "Phòng ngủ",
+    "label": "Phòng ngủ · Gần cửa sổ",
+    "base": [25, 55, 360, 300],
+    "x": 0.84,
+    "y": 0.35
+  }
+]

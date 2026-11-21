@@ -10,6 +10,10 @@ Nhánh bàn giao `integration/phuong-airguard` đã ghép phần của Phương 
 | Bản tin định kỳ, biến động và mất/kết nối lại | [Thông báo môi trường](apps/api/src/modules/environment/README.md) |
 | Phát JSON/CSV qua API, demo bốn thiết bị | [Simulator](tools/device-simulator/README.md) |
 
+## Nhà mẫu AirGuard · 3 phòng, 9 trạm
+
+Để tự chạy trên Windows, xem [hướng dẫn chạy Nhà mẫu local](tools/device-simulator/README.md#chạy-sau-khi-clone-trên-windows). [Bản mô tả Nhà mẫu](docs/NHA_MAU_AIRGUARD_BAN_GIAO.md) giải thích vị trí đặt trạm, các tình huống mô phỏng và cách đối chiếu trên web.
+
 ## Chạy thử bản bàn giao
 
 1. **Phạm vi.** Ba commit nguồn là `1d95786` (code), `6447b79` (README module) và `b979d53` (server chung và nhóm Telegram). Tại lúc tích hợp, commit cuối chỉ có trên nhánh nguồn local.

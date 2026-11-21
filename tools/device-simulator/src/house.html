@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirGuard | Nhà mẫu</title>
+<style>
+  * {box-sizing:border-box}
+  body {font:16px/1.5 system-ui,sans-serif;background:#f3f6f8;color:#172f3c;margin:0}
+  main {max-width:1000px;margin:auto;padding:28px 20px}
+  h1 {margin:0}
+  .station-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+  .room-actions {display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .room {margin:24px 0}
+  article {background:white;border:1px solid #d0dce0;border-radius:12px;padding:18px}
+  h2,p {margin:0 0 12px}
+  form, fieldset {display:grid;gap:10px}
+  fieldset {margin:0;padding:10px;border:1px solid #d0dce0;grid-template-columns:1fr 1fr}
+  fieldset[hidden] {display:none}
+  input,select,button {font:inherit;padding:6px 9px;border:1px solid #9db4bc;border-radius:6px;background:white;color:inherit}
+  input,select {width:100%}
+  button {cursor:pointer}
+  button[type=submit] {background:#14665c;color:white}
+  .actions {display:flex;gap:8px;flex-wrap:wrap}
+  .status {font-size:14px;min-height:3em;color:#325665}
+</style>
+<main>
+  <h1>Nhà mẫu AirGuard</h1>
+  <p>Bộ phát gửi số đo mỗi 5 giây khi tiến trình đang chạy. Chọn tình huống trên từng trạm rồi bấm Áp dụng.</p>
+  <p id="target"></p>
+  <p id="error" role="status"></p>
+  <button id="history">Chuẩn bị lịch sử demo 120 phút</button> <span id="history-status"></span>
+  <div id="house-actions" class="room-actions"></div>
+  <section id="stations" aria-label="Các trạm mô phỏng"></section>
+</main>
+<script type="module">
+const labels = {
+  normal:'Bình thường', warming:'Nóng dần',
+  humid:'Độ ẩm cao', gas:'MQ-2 cao và cảnh báo gas', co:'MQ-7 cao và cảnh báo CO',
+  fire:'Cảnh báo lửa', offline:'Ngừng gửi dữ liệu', invalid:'Lỗi cảm biến nhiệt độ và độ ẩm',
+  clock:'Đồng hồ chưa đồng bộ', manual:'Nhập số đo (MQ quy chiếu 12 bit)', cook:'Nấu ăn', vent:'Thông gió', dry:'Bật hút ẩm', hold:'Giữ số đo', jump:'Tạo bước nhảy', independent:'Biến động độc lập',
+};
+const cards = new Map(), groups = new Map();
+function controls(container, actions, targets) {
+  for (const [mode,label] of actions) {
+    const button = document.createElement('button');
+    button.textContent=label;
+    button.onclick=async()=>{
+      try {await Promise.all(targets.map(({station})=>update({station,mode})))}
+      catch(error){ document.querySelector('#error').textContent=error.message }
+    };
+    container.append(button);
+  }
+}
+function prepare(stations) {
+  controls(document.querySelector('#house-actions'),[['normal','Cả nhà bình thường'],['independent','Các trạm biến động độc lập']],stations);
+  for(const room of new Set(stations.map(s=>s.room))){
+    const section=document.createElement('section');section.className='room';
+    section.innerHTML='<h2></h2><div class="room-actions"></div><div class="station-grid"></div>';
+    section.querySelector('h2').textContent=room;
+    const actions=room==='Bếp'?[['cook','Nấu ăn'],['warming','Bếp nóng dần'],['humid','Bếp ẩm dần'],['vent','Tắt bếp / Thông gió']]:room==='Phòng khách'?[['vent','Mở cửa sổ']]:[['humid','Phòng kín ẩm dần'],['dry','Bật hút ẩm']];
+    controls(section.querySelector('.room-actions'),[...actions,['normal','Bình thường']],stations.filter(s=>s.room===room));
+    groups.set(room,section.querySelector('.station-grid'));document.querySelector('#stations').append(section);
+  }
+}
+async function update(command) {
+  const response = await fetch('/command', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(command),
+  });
+  if (!response.ok) throw new Error('Không áp dụng được. Kiểm tra giá trị đã nhập.');
+}
+function card({station,label,base,room}) {
+  const article = document.createElement('article');
+  article.innerHTML = `
+    <h3></h3>
+    <p class="status"></p>
+    <form>
+      <label>Tình huống <select name="mode"></select></label>
+      <fieldset hidden><legend>Số đo cố định</legend>
+        <label>Nhiệt độ (°C)<input name="temperature" type="number" min="0" max="50" step="0.1" value="${base[0]}"></label>
+        <label>Độ ẩm (%)<input name="humidity" type="number" min="0" max="100" step="0.1" value="${base[1]}"></label>
+        <label>MQ-2 (ADC)<input name="mq2" type="number" min="0" max="4095" value="${base[2]}"></label>
+        <label>MQ-7 (ADC)<input name="mq7" type="number" min="0" max="4095" value="${base[3]}"></label>
+      </fieldset>
+      <div class="actions"><button type="submit">Áp dụng</button><button type="button">Khởi động lại trạm</button><button type="button" name="version">Đổi firmware</button><button type="button" name="adc">Đổi 10 / 12 bit</button></div>
+      <small role="status"></small>
+    </form>`;
+  article.querySelector('h3').textContent = label.split(' · ')[1];
+  const form = article.querySelector('form');
+  const select = form.elements.mode;
+  for (const [value, name] of Object.entries(labels)) select.add(new Option(name,value));
+  const fieldset = form.querySelector('fieldset');
+  select.addEventListener('change', () => { fieldset.hidden = select.value !== 'manual'; });
+  const message = async value => {
+    const output = form.querySelector('small');
+    try { await update({station,...value}); output.textContent = 'Đã nhận lệnh.'; }
+    catch (error) { output.textContent = error.message; }
+  };
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const mode = select.value;
+    const fields = ['temperature','humidity','mq2','mq7'];
+    const values = mode === 'manual' ? Object.fromEntries(fields.map(key => [key,form.elements[key].valueAsNumber])) : undefined;
+    void message({mode,values});
+  });
+  form.querySelector('button[type=button]').addEventListener('click', () => void message({reboot:true}));
+  form.elements.version.onclick=()=>void message({firmware:true});
+  form.elements.adc.onclick=()=>void message({bits:Number(article.dataset.bits)===12?10:12});
+  groups.get(room).append(article);
+  return {article,status:article.querySelector('.status'),select};
+}
+document.querySelector('#history').onclick=async()=>{try{await update({history:true})}catch(e){document.querySelector('#error').textContent=e.message}};
+async function refresh() {
+  try {
+    const response = await fetch('/status');
+    if (!response.ok) throw new Error();
+    const {api,stations,historyStatus,historyRunning} = await response.json();
+    document.querySelector('#history-status').textContent=historyStatus;
+    document.querySelector('#history').disabled=historyRunning || historyStatus.startsWith('Đã chuẩn bị');
+    document.querySelector('#target').textContent = 'API nhận số đo · ' + api;
+    document.querySelector('#error').textContent = '';
+    if (!groups.size) prepare(stations);
+    for (const station of stations) {
+      if (!cards.has(station.station)) {
+        const item = card(station);
+        item.select.value = station.mode;
+        item.select.dispatchEvent(new Event('change'));
+        cards.set(station.station,item);
+      }
+      cards.get(station.station).article.dataset.bits=station.bits;
+      const last = station.lastSent ? new Date(station.lastSent).toLocaleTimeString('vi-VN') : 'chưa có';
+      cards.get(station.station).status.textContent = labels[station.mode] + ' · ADC ' + station.bits + ' bit · FW 1.' + station.firmware +
+        ' · ' + (station.mode === 'offline' ? 'Đã dừng gửi' : station.status) + ' · Lần API nhận gần nhất ' + last;
+    }
+  } catch {
+    document.querySelector('#error').textContent = 'Chưa kết nối được với bộ phát Nhà mẫu.';
+  } finally { setTimeout(refresh,2000); }
+}
+void refresh();
+</script>
+</html>
