@@ -196,6 +196,21 @@
   padding: clamp(1rem, 3vw, 2.5rem);
   box-shadow: 0 10px 35px #0002;
 }
+/* Bao cao co nen trang; panel phan tich ky thuat dung nen toi rieng.
+   Khong ke thua mau chu toi #172033 cua bao cao tren nen #111a29. */
+.cr-report .cr-admin {
+  color: #ffffff;
+  background: #111a29;
+  border-color: #334155;
+}
+.cr-report .cr-admin summary,
+.cr-report .cr-admin .cr-admin-grid,
+.cr-report .cr-admin .cr-admin-grid b {
+  color: #ffffff;
+}
+.cr-report .cr-admin .muted {
+  color: #cbd5e1;
+}
 .cr-report > header {
   display: flex;
   justify-content: space-between;
@@ -295,8 +310,41 @@
   }
 }
 @media print {
+  /* visibility:hidden khong giai phong cho trong. An thuc su phan giao dien
+     truoc bao cao de tieu de bat dau ngay dau trang PDF. */
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
   body * {
     visibility: hidden;
+  }
+  .sidebar,
+  .topbar,
+  .content > :not(.cr-page),
+  .cr-page > .page-title,
+  .cr-page > .cr-tabs,
+  .cr-section > :not(.cr-report),
+  .no-print {
+    display: none !important;
+  }
+  .app-layout,
+  .workspace,
+  .content,
+  .cr-page,
+  .cr-section {
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
   .cr-report,
   .cr-report * {
@@ -306,25 +354,43 @@
     position: static;
     width: 100%;
     max-width: none;
+    margin: 0;
     box-shadow: none;
     border-radius: 0;
     padding: 0;
     font-size: 9.5pt;
+    background: #ffffff;
+    color: #172033;
   }
-  .no-print {
-    display: none !important;
+  /* Trinh duyet co the bo qua in nen mau: dung chu toi tren nen trang. */
+  .cr-report .cr-admin {
+    color: #172033;
+    background: #ffffff;
+    border-color: #dce4ea;
+  }
+  .cr-report .cr-admin summary,
+  .cr-report .cr-admin .cr-admin-grid,
+  .cr-report .cr-admin .cr-admin-grid b {
+    color: #172033;
+  }
+  .cr-report .cr-admin .muted {
+    color: #516070;
   }
   .cr-report-charts {
     grid-template-columns: 1fr;
   }
   .cr-report-charts section,
   .cr-report-stats section,
-  .cr-report-quality,
-  .cr-incidents,
   .cr-report > header,
   .cr-report footer {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  /* Cac muc dai (dac biet bang su co) co the tach trang binh thuong. */
+  .cr-report-quality,
+  .cr-incidents {
+    break-inside: auto;
+    page-break-inside: auto;
   }
   .cr-report-chart-canvas {
     height: 220px;
