@@ -1,6 +1,6 @@
 # Bàn giao module AirGuard
 
-Mốc so sánh là nội dung của `IoT-Air-Monitor-main.zip`, bỏ qua khác biệt CRLF/LF trong tệp văn bản. ZIP thiếu thư mục .git nên không xác định được commit hay nhánh GitHub gốc. Trước khi sắp xếp có 70 tệp mới và 34 tệp gốc thay đổi. Bản bàn giao thêm IncidentDetails.tsx, .gitignore và tài liệu này. Trong 136 tệp gốc có 102 tệp giữ nguyên và 34 tệp sửa. Không có tệp bị xóa. Package manifest, lockfile và migration gốc giữ nguyên.
+Mốc so sánh là nội dung của `IoT-Air-Monitor-main.zip`, bỏ qua khác biệt CRLF/LF trong tệp văn bản. Sau khi đối chiếu lịch sử GitHub, 136 tệp trong ZIP khớp commit `f89a643`. Thống kê bên dưới mô tả commit chức năng `1d95786`. Xem [README tích hợp](../README.md) để ghép vào nhánh mới hơn và mở README của từng chức năng. Trước khi sắp xếp có 70 tệp mới và 34 tệp gốc thay đổi. Bản bàn giao thêm IncidentDetails.tsx, .gitignore và tài liệu này. Trong 136 tệp gốc có 102 tệp giữ nguyên và 34 tệp sửa. Không có tệp bị xóa. Package manifest, lockfile và migration gốc giữ nguyên.
 
 ## Đọc theo chức năng
 
@@ -14,18 +14,9 @@ Mốc so sánh là nội dung của `IoT-Air-Monitor-main.zip`, bỏ qua khác b
 
 Các kiểu API dùng chung nằm trong packages/contracts/src/. Bảy migration mới nằm trong packages/database/prisma/migrations/ theo thứ tự timestamp. Khi merge, review đồng thời schema và migration, nhất là nếu nhánh nhóm đã có migration mới. Với queue, kiểm tra chỉ có một đường gửi cho mỗi đích. Giữ các route cũ và đường dẫn /push-sw.js khi ghép frontend. Chỉ lấy các thư mục mới sẽ thiếu phần tích hợp ở các tệp cũ.
 
-## Áp commit lên lịch sử thật của nhóm
+## Lấy phần bàn giao
 
-Trong một bản clone sạch của repo nhóm tại nhánh tích hợp mới nhất, tạo nhánh cá nhân và áp file patch ở ngoài repo:
-
-```powershell
-git status --short
-git switch -c feature/airguard-spaces-notifications
-git am --3way 'P:\Download_backup\IoT-Air-Monitor-main\AirGuard-modules.patch'
-git show --stat HEAD
-```
-
-Nếu nhánh nhóm đã thay đổi cùng đoạn mã, xem `git status`, giải quyết xung đột theo từng module, stage các tệp đã giải quyết và chạy `git am --continue`. Có thể dùng `git am --abort` để quay lại trước khi áp. Chạy typecheck/build và migration trên database thử của nhóm, kiểm tra đăng nhập, gán phòng, phát cảnh báo, tiếp nhận và lịch sử trước khi mở PR. Sau khi review nhánh cục bộ, có thể dùng `git push -u origin feature/airguard-spaces-notifications`.
+Nhánh cá nhân là `feature/airguard-spaces-notifications`. Khi đã có nhánh này, ưu tiên dùng Git để review và ghép cả code lẫn tài liệu. File patch xuất riêng trước đó chỉ chứa commit chức năng. Các README bổ sung sau đó nằm trên nhánh. [Hướng dẫn cho người tích hợp](../README.md).
 
 ## Diff của từng tệp gốc
 
