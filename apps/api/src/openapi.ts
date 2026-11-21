@@ -325,6 +325,9 @@ export const openapi = {
         requestBody: requestBody(deviceEventsSchema),
       },
     },
+    '/api/v1/alerts/overview-day': {
+      get: operation('Số sự cố phát sinh và kết thúc trong 24 giờ qua tại các trạm đang theo dõi'),
+    },
     '/api/v1/alerts/states': {
       get: {
         ...operation('Trạng thái đã quan sát, unresolved incident không tự đóng khi offline'),

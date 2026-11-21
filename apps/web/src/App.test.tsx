@@ -32,7 +32,7 @@ it('logs in to the real-data empty dashboard without fabricating telemetry', asy
                   expires_at: new Date(Date.now() + 3600000).toISOString(),
                   user: { id: 'user-1', email: 'admin@test.local', role: 'admin' },
                 }
-              : [],
+              : url.endsWith('/spaces') ? { areas: [], rooms: [], devices: [] } : [],
             meta: {},
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -80,7 +80,7 @@ it('restores an existing server session on a fresh page mount without exposing a
                 user: { id: 'user-1', email: 'admin@test.local', role: 'admin' },
                 expires_at: new Date(Date.now() + 3600000).toISOString(),
               }
-            : [],
+            : url.endsWith('/spaces') ? { areas: [], rooms: [], devices: [] } : [],
         }),
         { status: 200 },
       ),

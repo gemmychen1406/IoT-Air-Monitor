@@ -362,6 +362,21 @@ function incidentView(i: IncidentRow) {
   };
 }
 export function registerAlerts(router: Router, { db, reply, operator, publish }: FeatureContext) {
+  router.get('/alerts/overview-day', async (_req, res) => {
+    const to = new Date();
+    const window = { gte: new Date(to.getTime() - 24 * 3600000), lt: to };
+    const device = { archivedAt: null };
+    const [opened, ended] = await db.$transaction([
+      db.alertIncident.count({ where: { device, OR: [
+        { startedAt: window }, { startedAt: null, firstObservedAt: window },
+      ] } }),
+      db.alertIncident.count({ where: { device, status: 'ended', OR: [
+        { endedAt: window },
+        { endedAt: null, events: { some: { transition: 'ended', receivedAt: window } } },
+      ] } }),
+    ]);
+    reply(res, { opened, ended });
+  });
   router.get('/alerts/states', async (req, res) => {
     const query = z.object({ device_id: z.uuid().optional() }).parse(req.query);
     const rows = await db.alertState.findMany({

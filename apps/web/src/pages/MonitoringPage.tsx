@@ -2,6 +2,8 @@ import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { DeviceView } from '@iot/contracts';
 import { SensorPanel } from '../components/SensorPanel.js';
+import { SensorMeaningGuide } from '../components/SensorMeaningGuide.js';
+
 const MonitoringChart = lazy(() => import('./MonitoringChart.js'));
 
 export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
@@ -48,6 +50,7 @@ export default function MonitoringPage({ devices }: { devices: DeviceView[] }) {
               <MonitoringChart deviceId={selected.id} />
             </Suspense>
           </section>
+          <SensorMeaningGuide device={selected} />
         </>
       ) : (
         <div className="empty">

@@ -27,7 +27,7 @@ import { createRefetchBatcher } from './lib/refetch-batcher.js';
 import { clearBrowserPush } from './lib/web-push.js';
 import { useIncidentNotices } from './features/incident-response/IncidentNotices.js';
 import LoginPage, { type SessionView } from './pages/LoginPage.js';
-import OverviewPage from './pages/OverviewPage.js';
+import OverviewPage, { type OverviewAlert } from './pages/OverviewPage.js';
 import SettingsPage from './pages/SettingsPage.js';
 const DevicesPage = lazy(() => import('./pages/DevicesPage.js'));
 const DeviceDetailPage = lazy(() => import('./pages/DeviceDetailPage.js'));
@@ -79,7 +79,6 @@ const navigation = [
 export function App() {
   const path = useLocation().pathname;
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState('');
   const [connected, setConnected] = useState(false);
   const [theme, setTheme] = useState(() =>
     localStorage.getItem('airguard.theme.v1') === 'light' ? 'light' : 'dark',
@@ -108,7 +107,7 @@ export function App() {
   });
   const states = useQuery({
     queryKey: ['alert-states'],
-    queryFn: () => api<{ device_id: string; unresolved: boolean }[]>('/alerts/states'),
+    queryFn: () => api<OverviewAlert[]>('/alerts/states'),
     enabled: !!session,
     refetchInterval: 10000,
   });
@@ -217,7 +216,6 @@ export function App() {
     await queryClient.cancelQueries();
     queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'session' });
     queryClient.setQueryData(['session'], null);
-    setSelectedId('');
     setLogoutError(null);
   }
   if (sessionQuery.isPending)
@@ -237,11 +235,6 @@ export function App() {
     );
   if (!session)
     return <LoginPage onLogin={(value) => queryClient.setQueryData(['session'], value)} />;
-  const activeIncidents =
-    states.isError || states.isPending
-      ? null
-      : (states.data?.filter((s) => s.unresolved && devices.some((d) => d.id === s.device_id))
-          .length ?? 0);
   return (
     <div className="app-layout">
       <aside className="sidebar">
@@ -308,10 +301,8 @@ export function App() {
                 path="/app/overview"
                 element={
                   <OverviewPage
-                    devices={devices}
-                    selectedId={selectedId}
-                    onSelect={setSelectedId}
-                    activeIncidents={activeIncidents}
+                    devices={devicesQuery.isError ? undefined : devicesQuery.data}
+                    alerts={states.isError ? undefined : states.data}
                   />
                 }
               />
