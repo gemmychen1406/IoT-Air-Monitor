@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   Activity,
   BarChart3,
+  ChartNoAxesCombined,
   FileDown,
   GitCompareArrows,
   Save,
@@ -15,10 +16,13 @@ import { loadConfigurations, saveConfigurations } from "./storage.js";
 import type { SavedConfiguration } from "./types.js";
 import "./styles.css";
 
+const AnalyticsPage = lazy(() => import("../../pages/AnalyticsPage.js"));
+
 const TABS = [
   ["devices", "So sánh thiết bị", GitCompareArrows],
   ["period", "So sánh giai đoạn", BarChart3],
   ["report", "Báo cáo môi trường", FileDown],
+  ["history", "Dữ liệu & lịch sử", ChartNoAxesCombined],
   ["anomaly", "Biến động bất thường", Activity],
   ["saved", "Cấu hình đã lưu", Save],
 ] as const;
@@ -126,6 +130,17 @@ export default function ComparisonReportingPage({
           initial={applied}
           onSave={add}
         />
+      ) : null}
+      {tab === "history" ? (
+        <section className="cr-section">
+          <Suspense
+            fallback={
+              <div className="skeleton" role="status" aria-label="Đang tải" />
+            }
+          >
+            <AnalyticsPage devices={devices} embedded />
+          </Suspense>
+        </section>
       ) : null}
       {devices.length && tab === "anomaly" ? (
         <AnomalyDetection devices={devices} isAdmin={user.role === "admin"} />

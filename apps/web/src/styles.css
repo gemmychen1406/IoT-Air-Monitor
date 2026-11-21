@@ -314,7 +314,7 @@ nav a:hover {
 .content {
   max-width: 1580px;
   margin: auto;
-  padding: 36px 34px 0;
+  padding: 36px 34px 56px;
 }
 .page-title {
   display: flex;
@@ -734,7 +734,7 @@ footer {
     padding: 0 22px;
   }
   .content {
-    padding: 28px 22px 0;
+    padding: 28px 22px 48px;
   }
   .topbar-actions {
     margin-left: auto;
@@ -787,7 +787,7 @@ footer {
     font-size: 10px;
   }
   .content {
-    padding: 25px 16px 0;
+    padding: 25px 16px 40px;
   }
   .page-title {
     align-items: flex-start;

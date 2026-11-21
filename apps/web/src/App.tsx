@@ -12,7 +12,6 @@ import {
   Bell,
   Sun,
   Moon,
-  ChartNoAxesCombined,
   Users,
   ScrollText,
   GitCompareArrows,
@@ -37,7 +36,6 @@ const IncidentPage = lazy(() => import('./pages/IncidentPage.js'));
 const DeliveryHistoryPage = lazy(() => import('./features/notification-center/DeliveryHistoryPage.js'));
 const EnvironmentSettingsPage = lazy(() => import('./features/notification-center/EnvironmentSettingsPage.js'));
 const NotificationSettingsPage = lazy(() => import('./features/notification-center/NotificationSettingsPage.js'));
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage.js'));
 const UsersPage = lazy(() => import('./pages/UsersPage.js'));
 const AuditPage = lazy(() => import('./pages/AuditPage.js'));
 const MonitoringSpacesPage = lazy(() => import('./features/monitoring-spaces/MonitoringSpacesPage.js'));
@@ -63,10 +61,9 @@ const navigation = [
     {path:'devices', icon:Cpu,label:'Thiết bị'},
   ]},
   {title:'Phân tích',links:[
-    {path:'analytics',icon:ChartNoAxesCombined,label:'Phân tích & lịch sử'},
     // [FORECAST - SUA FILE CHUNG] Them muc menu vao nhom Phan tich.
     {path:'forecast',icon:TrendingUp,label:'Giám sát & Dự báo'},
-    {path:'comparison-reporting',icon:GitCompareArrows,label:'So sánh & báo cáo'},
+    {path:'comparison-reporting',icon:GitCompareArrows,label:'Phân tích & báo cáo'},
   ]},
   {title:'Cấu hình & quản trị',links:[
     {path:'settings',icon:Settings,label:'Cài đặt'},
@@ -325,7 +322,7 @@ export function App() {
               <Route path="/app/environment-settings" element={<EnvironmentSettingsPage devices={devices} user={session.user} />} />
               <Route path="/app/settings/notifications" element={<NotificationSettingsPage devices={devices} user={session.user} />} />
               <Route path="/app/alerts/:id" element={<IncidentPage user={session.user} />} />
-              <Route path="/app/analytics" element={<AnalyticsPage devices={devices} />} />
+              <Route path="/app/analytics" element={<Navigate to="/app/comparison-reporting" replace />} />
               {/* [FORECAST - SUA FILE CHUNG] Route ca nhan, dung devices va API chung cua nhom. */}
               <Route path="/app/forecast" element={<ForecastPage devices={devices} />} />
               <Route
