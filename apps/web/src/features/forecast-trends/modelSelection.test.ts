@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chooseByMae, describeMaeChoice, selectForecastModel } from './modelSelection.js';
+import { walkForward } from './validation.js';
 import { evaluateDhtMetricStatus } from './dhtAdvisory.js';
 import { forecastMeasure } from './forecasting.js';
 import { series, START, mins } from './testHelpers.js';
@@ -20,8 +21,8 @@ describe('automatic forecast selection - independently by metric and horizon', (
     const humidity = selectForecastModel(points, 'humidity', 15, now);
     expect(temp).toMatchObject({ basis: 'fallback', metricStatus: 'normal', model: 'naive', pairs: 0 });
     expect(humidity).toMatchObject({ basis: 'fallback', metricStatus: 'watch', model: 'holt', pairs: 0 });
-    expect(temp.explanation).toContain('0/30');
-    expect(humidity.explanation).toContain('0/30');
+    expect(temp.explanation).toContain('chưa đủ mốc đối chiếu');
+    expect(humidity.explanation).toContain('chưa đủ mốc đối chiếu');
   });
 
   it('can detect one metric even if the other is invalid in some minute buckets', () => {
@@ -89,8 +90,8 @@ describe('automatic forecast selection - independently by metric and horizon', (
   it('uses MAE with at least 30 common historical pairs and reports the error and count', () => {
     const points = series(Array.from({ length: 100 }, (_, i) => 20 + i * 0.08));
     const selection = selectForecastModel(points, 'temperature', 15, START + mins(99));
-    expect(selection.basis).toBe('mae');
-    expect(selection.pairs).toBeGreaterThanOrEqual(30);
+    expect(selection.basis).toBe('recent_mae');
+    expect(selection.pairs).toBeGreaterThanOrEqual(6);
     expect(selection.model).not.toBe('naive');
     expect(selection.mae).not.toBeNull();
     expect(selection.explanation).toContain('MAE');
@@ -102,16 +103,16 @@ describe('automatic forecast selection - independently by metric and horizon', (
     const now = START + mins(50);
     const short = selectForecastModel(points, 'temperature', 15, now);
     const long = selectForecastModel(points, 'temperature', 30, now);
-    expect(short.basis).toBe('mae');
-    expect(long.basis).toBe('fallback');
-    expect(long.pairs).toBeLessThan(30);
+    expect(short.basis).toBe('recent_mae');
+    expect(long.basis).toBe('recent_mae');
+    expect(long.pairs).toBeGreaterThanOrEqual(6);
   });
 
   it('limits humidity to physical 0..100 and uses the humidity MAE threshold', () => {
     const humid = series(Array(100).fill(25), Array.from({ length: 100 }, (_, i) => Math.min(99, 48 + i * 0.8)));
     const now = START + mins(99);
     const selection = selectForecastModel(humid, 'humidity', 15, now);
-    expect(selection.basis).toBe('mae');
+    expect(selection.basis).toBe('recent_mae');
     expect(selection.mae).not.toBeNull();
     expect(chooseByMae(rows('humidity', [1.2, 1.1, 1.05]), 'humidity')?.model).toBe('naive');
     const result = forecastMeasure(humid, 'humidity', selection.model, 15, now);
@@ -126,5 +127,62 @@ describe('automatic forecast selection - independently by metric and horizon', (
       expect(selectForecastModel(points, 'temperature', 30, now, undefined, model))
         .toMatchObject({ model, basis: 'manual' });
     }
+  });
+});
+
+describe('recent completed MAE comparisons at the requested horizon', () => {
+  it('switches to Linear when the last 20 completed comparisons follow a new increasing regime', () => {
+    // Older readings oscillate around 25C, newer readings rise steadily.
+    // The historical majority favours Naive, but recent +15-min errors favour Linear.
+    const temps = Array.from({ length: 145 }, (_, i) =>
+      i < 130 ? 25 + 0.3 * Math.sin(i / 9) : 25 + (i - 130) * 0.08);
+    const points = series(temps);
+    const current = START + mins(temps.length - 1);
+    const full = walkForward(points, 'temperature', 15);
+    const recent = walkForward(points, 'temperature', 15, undefined, {
+      minTargetAt: current - mins(20), maxPairs: 20,
+    });
+    expect(recent.every(row => row.pairs >= 6 && row.pairs <= 20)).toBe(true);
+    expect(chooseByMae(full, 'temperature')?.model).toBe('naive');
+    expect(chooseByMae(recent, 'temperature', 6)?.model).toBe('linear');
+    const selection = selectForecastModel(points, 'temperature', 15, current);
+    expect(selection).toMatchObject({ basis: 'recent_mae', model: 'linear', horizon: 15 });
+    expect(selection.explanation).toContain('mốc gần nhất ở khoảng +15 phút');
+  });
+
+  it('uses full-history MAE when the last 20 minutes contain fewer than 6 completed pairs', () => {
+    const earlier = series(Array.from({ length: 100 }, (_, i) => 25 + 0.4 * Math.sin(i / 5)));
+    const later = series([26, 26.1, 26.1, 26.2, 26.3], undefined, START + mins(180));
+    const points = [...earlier, ...later];
+    const now = START + mins(184);
+    const recent = walkForward(points, 'temperature', 15, undefined, {
+      minTargetAt: now - mins(20), maxPairs: 20,
+    });
+    expect(recent[0]?.pairs).toBeLessThan(6);
+    const full = walkForward(points, 'temperature', 15);
+    expect(full[0]!.pairs).toBeGreaterThanOrEqual(30);
+    const selected = selectForecastModel(points, 'temperature', 15, now);
+    expect(selected.basis).toBe('mae');
+    expect(selected.pairs).toBe(full[0]?.pairs);
+    expect(selected.explanation).not.toContain('mốc gần nhất');
+  });
+
+  it('uses fallback for insufficient recent and historical pairs, independently by metric', () => {
+    const points = series(Array(7).fill(24), [45, 48, 51, 54, 57, 60, 63]);
+    const now = START + mins(6);
+    expect(selectForecastModel(points, 'temperature', 30, now)).toMatchObject({ basis: 'fallback', model: 'naive' });
+    expect(selectForecastModel(points, 'humidity', 30, now)).toMatchObject({ basis: 'fallback', model: 'holt' });
+  });
+
+  it('uses the same prediction horizon for both recent and full history, never +5 for +30', () => {
+    const points = series(Array.from({ length: 100 }, (_, i) => 23 + 0.3 * Math.sin(i / 7)));
+    const selection = selectForecastModel(points, 'temperature', 30, START + mins(99));
+    expect(selection.horizon).toBe(30);
+    expect(selection.explanation).toContain('+30 phút');
+    const recent = walkForward(points, 'temperature', 30, undefined, {
+      minTargetAt: START + mins(79), maxPairs: 20,
+    });
+    expect(recent[0]?.pairs).toBeGreaterThanOrEqual(6);
+    expect(recent[0]?.horizon).toBe(30);
   });
 });

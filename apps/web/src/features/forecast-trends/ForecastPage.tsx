@@ -1,7 +1,7 @@
 // [FORECAST - FILE MOI] Giao dien rieng cua module Phan tich xu huong & Du bao.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, TrendingUp, House, Info, Radio, TriangleAlert, Waves, History } from 'lucide-react';
 import { Link } from 'react-router';
 import type { DeviceView, SpacesView } from '@iot/contracts';
@@ -74,6 +74,8 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const queryClient = useQueryClient();
+  const latestSignalRef = useRef<{ deviceId: string; latestId: string | null; refreshedAt: number } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(timer);
@@ -91,16 +93,39 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   // No auto-selected stations: users may choose none, one, or any 2..9 devices.
   const roomIds = roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
   const queryIds = selected ? [selected.id] : [];
-  const fromMs = Math.floor(nowMs / CFG.minuteMs) * CFG.minuteMs - CFG.historyMinutes * CFG.minuteMs;
-  const toMs = Math.ceil(nowMs / CFG.minuteMs) * CFG.minuteMs;
   const historyQueries = useQueries({
     queries: queryIds.map((deviceId) => ({
       queryKey: ['forecast-history', deviceId],
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchForecastHistory(deviceId, fromMs, toMs, signal),
-      staleTime: 30_000,
+      // Compute the rolling history window on EVERY request, not at page render.
+      queryFn: ({ signal }: { signal: AbortSignal }) => {
+        const requestNow = Date.now();
+        const fromMs = Math.floor(requestNow / CFG.minuteMs) * CFG.minuteMs - CFG.historyMinutes * CFG.minuteMs;
+        const toMs = Math.ceil(requestNow / CFG.minuteMs) * CFG.minuteMs;
+        return fetchForecastHistory(deviceId, fromMs, toMs, signal);
+      },
+      staleTime: 15_000,
       refetchInterval: 45_000,
     })),
   });
+  // The device list can refresh approximately every 5 s. Invalidate Forecast
+  // history on a NEW reading ID, but no more often than every 15 s per device.
+  // The initial query for a new device starts automatically via useQueries.
+  useEffect(() => {
+    const deviceId = selected?.id;
+    const latestId = selected?.latest?.id ?? null;
+    if (!deviceId) { latestSignalRef.current = null; return; }
+    const previous = latestSignalRef.current;
+    if (!previous || previous.deviceId !== deviceId) {
+      latestSignalRef.current = { deviceId, latestId, refreshedAt: Date.now() };
+      return;
+    }
+    if (!latestId || latestId === previous.latestId) return;
+    const currentTime = Date.now();
+    latestSignalRef.current = { ...previous, latestId };
+    if (currentTime - previous.refreshedAt < 15_000) return;
+    latestSignalRef.current.refreshedAt = currentTime;
+    void queryClient.invalidateQueries({ queryKey: ['forecast-history', deviceId], exact: true });
+  }, [selected?.id, selected?.latest?.id, queryClient]);
   const queryFor = (id: string) => historyQueries[queryIds.indexOf(id)];
   const dataFor = (id: string): HistoryResponse | null => queryFor(id)?.data ?? null;
   const selectedQuery = selected ? queryFor(selected.id) : null;

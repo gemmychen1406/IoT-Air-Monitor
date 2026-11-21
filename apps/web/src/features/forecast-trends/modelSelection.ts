@@ -7,7 +7,7 @@ import { walkForward, type ValidationRow } from './validation.js';
 import type { ForecastModel, Measure, MinuteReading } from './types.js';
 
 export type ForecastSelection = 'auto' | ForecastModel;
-export type SelectionBasis = 'mae' | 'fallback' | 'manual' | 'stale' | 'insufficient';
+export type SelectionBasis = 'recent_mae' | 'mae' | 'fallback' | 'manual' | 'stale' | 'insufficient';
 
 export interface ModelSelectionResult {
   model: ForecastModel;
@@ -34,10 +34,10 @@ const pretty = (value: number, metric: Measure) =>
  * above the minimum observed MAE. At exactly the threshold, prefer the model
  * with lower MAE. All three results must come from the same walk-forward pairs.
  */
-export function chooseByMae(rows: readonly ValidationRow[], metric: Measure): ValidationRow | null {
+export function chooseByMae(rows: readonly ValidationRow[], metric: Measure, minimumPairs = CFG.validationMinimumPairs): ValidationRow | null {
   const ordered = SIMPLE_FIRST.map((model) => rows.find((row) => row.model === model));
   if (ordered.some((row) => !row || row.metric !== metric || row.mae === null ||
-    !Number.isFinite(row.mae) || row.pairs < CFG.validationMinimumPairs)) return null;
+    !Number.isFinite(row.mae) || row.pairs < minimumPairs)) return null;
   const complete = ordered as ValidationRow[];
   if (new Set(complete.map((row) => `${row.horizon}:${row.pairs}`)).size !== 1) return null;
   const bestMae = Math.min(...complete.map((row) => row.mae!));
@@ -82,7 +82,23 @@ export function selectForecastModel(
     explanation: `Bạn đang chọn ${MODEL_LABELS[preference]} thủ công.`,
   };
 
-  const rows = walkForward(points, metric, horizon, metric === 'humidity' ? clampHumidity : undefined);
+  const postProcess = metric === 'humidity' ? clampHumidity : undefined;
+  // A completed recent pair must have an observed target reading in the last
+  // 20 minutes. A long data gap must NOT make weeks-old pairs look recent.
+  // Require 6 common pairs, cap to 20 most recently completed comparisons.
+  const recentRows = walkForward(points, metric, horizon, postProcess, {
+    minTargetAt: actualLastAt - 20 * CFG.minuteMs,
+    maxPairs: 20,
+  });
+  const recentBest = chooseByMae(recentRows, metric, 6);
+  if (recentBest !== null) return {
+    ...base, model: recentBest.model, basis: 'recent_mae', pairs: recentBest.pairs, mae: recentBest.mae,
+    explanation: describeMaeChoice(recentBest, recentRows, metric, horizon).replace(
+      `mốc +${horizon} phút`, `mốc gần nhất ở khoảng +${horizon} phút`,
+    ),
+  };
+
+  const rows = walkForward(points, metric, horizon, postProcess);
   const pairs = Math.min(...rows.map((row) => row.pairs));
   const best = chooseByMae(rows, metric);
   if (best !== null) return {
@@ -93,6 +109,6 @@ export function selectForecastModel(
   const fallback: ForecastModel = status === 'watch' ? 'holt' : 'naive';
   return {
     ...base, model: fallback, basis: 'fallback', pairs: Number.isFinite(pairs) ? pairs : 0, mae: null,
-    explanation: `Chọn ${MODEL_LABELS[fallback]} tạm thời vì ${status === 'watch' ? 'chỉ số đang biến động liên tục' : status === 'normal' ? 'chỉ số chưa có biến động vượt ngưỡng' : 'chưa đủ mẫu liên tục để kết luận biến động'} (mới có ${Number.isFinite(pairs) ? pairs : 0}/${CFG.validationMinimumPairs} mốc đối chiếu).`,
+    explanation: `Chọn ${MODEL_LABELS[fallback]} theo trạng thái ${status === 'watch' ? 'biến động liên tục' : status === 'normal' ? 'ổn định' : 'chưa đủ dữ liệu để kết luận'} hiện tại (chưa đủ mốc đối chiếu).`,
   };
 }
