@@ -330,9 +330,6 @@ export default function EnvironmentalGoalsView({ devices }: { devices: DeviceVie
               </div>
             </div>
           </div>
-
-          {/* Card So sánh Thời tiết Ngoài trời */}
-          <OutdoorWeatherCard device={selectedDevice} />
         </div>
 
         {/* CỘT PHẢI: Chi tiết Mục tiêu & Thanh đo Gauge trực quan */}
@@ -692,7 +689,10 @@ export default function EnvironmentalGoalsView({ devices }: { devices: DeviceVie
         </div>
       </div>
 
-      {/* 3. KHỐI TƯƠNG TÁC BÊN DƯỚI (2 CỘT): Điều khiển thiết bị ảo + Dòng thời gian 24h */}
+      {/* 3. SO SÁNH THỜI TIẾT NGOÀI TRỜI & TRONG NHÀ (FULL WIDTH) */}
+      <OutdoorWeatherCard device={selectedDevice} />
+
+      {/* 4. KHỐI TƯƠNG TÁC BÊN DƯỚI (2 CỘT): Điều khiển thiết bị ảo + Dòng thời gian 24h */}
       <div className="smart-bottom-grid">
         <SmartActuatorControls device={selectedDevice} />
         <HourlyTimelineView device={selectedDevice} />

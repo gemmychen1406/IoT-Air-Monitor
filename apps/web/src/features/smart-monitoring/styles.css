@@ -1394,13 +1394,17 @@
 
 /* 6. OUTDOOR WEATHER CARD STYLES */
 .outdoor-weather-card {
-  margin-top: 1.5rem;
+  margin: 1.5rem 0;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   border: 1px solid var(--border);
   background: linear-gradient(135deg, rgba(45, 212, 191, 0.04), var(--panel));
+  border-radius: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .weather-card-header {
@@ -1467,6 +1471,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .indoor-box {
@@ -1482,6 +1488,9 @@
   font-weight: 700;
   color: var(--accent);
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .box-outdoor {
