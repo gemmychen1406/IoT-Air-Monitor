@@ -6,6 +6,8 @@ export const FORECAST_CONFIG = {
   advancedMaxMinutes: 360,
   forestMinTrainingRows: 50,
   trendMinutes: 30,
+  // Minute buckets: tolerate one missing minute, but not larger gaps.
+  trendMaxGapMinutes: 2,
   chartMinutes: 60,
   movingAverageMinutes: 3,
   rapidChangeMinutes: 3,

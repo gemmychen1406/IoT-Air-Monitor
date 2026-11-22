@@ -63,6 +63,33 @@ describe('normalization and trend', () => {
     expect(analyzeTrend(points, 'temperature', actualSampleTime + CFG.staleAfterMs, actualSampleTime).status).toBe('increasing');
     expect(analyzeTrend(points, 'temperature', actualSampleTime + CFG.staleAfterMs + 1, actualSampleTime).status).toBe('stale');
   });
+  it('does not classify a broken 30-minute history as a reliable trend', () => {
+    const points = series([20, 21, 22, 23, 24]);
+    [0, 10, 15, 20, 30].forEach((minute, index) => { points[index]!.timestamp = START + mins(minute); });
+    const trend = analyzeTrend(points, 'temperature', START + mins(30));
+    expect(trend).toMatchObject({ status: 'insufficient', sampleCount: 5, slopePerMinute: null });
+  });
+  it('tolerates one missing bucket but never interpolates larger gaps', () => {
+    const points = series([20, 21, 23, 24, 25, 26]);
+    [0, 1, 3, 4, 5, 6].forEach((minute, index) => { points[index]!.timestamp = START + mins(minute); });
+    expect(analyzeTrend(points, 'temperature', START + mins(6)).status).toBe('increasing');
+  });
+  it('uses trailing smoothing instead of the noisier raw readings', () => {
+    const points = series([20, 20, 20, 20, 20, 20, 20, 20, 20, 50]);
+    const trend = analyzeTrend(points, 'temperature', START + mins(9));
+    const rawSlope = (50 - 20) * (9 - 4.5) / 82.5; // OLS for the one final spike
+    expect(trend.status).toBe('increasing');
+    expect(trend.slopePerMinute!).toBeLessThan(rawSlope);
+  });
+  it('ignores future, invalid and duplicate timestamps when calculating trend', () => {
+    const points = series([20, 21, 22, 23, 24, 25]);
+    points.push({ ...points[3]!, temperature: 23 });
+    points.push({ ...points[5]!, timestamp: START + mins(7), temperature: 999 });
+    points.push({ ...points[5]!, timestamp: START + mins(8), temperature: 30 });
+    const trend = analyzeTrend(points, 'temperature', START + mins(5));
+    expect(trend.sampleCount).toBe(6);
+    expect(trend.status).toBe('increasing');
+  });
   it('returns insufficient without measurements', () => {
     expect(analyzeTrend([], 'temperature', START).status).toBe('insufficient');
   });

@@ -91,12 +91,15 @@ export function forecastMeasure(
   }
   const output = [];
   for (let minute = 1; minute <= horizonMinutes; minute++) {
-    const timestamp = last.timestamp + minute * CFG.minuteMs;
+    // Linear/Holt support fractional elapsed minutes. When a synchronized DHT11
+    // sample arrives partway through a minute, predict for the SAME exact time
+    // that the chart labels (+15/+30 minutes after that sample).
+    const timestamp = anchorTime + minute * CFG.minuteMs;
     const value = predictAt(training, metric, model, last.timestamp, timestamp);
     if (value === null) {
       return { status: 'calculation_error', reason: 'Không thể tính dự báo từ chuỗi hiện tại.', lastSampleAt: last.timestamp, current: last.value, points: [] };
     }
-    output.push({ timestamp: anchorTime + minute * CFG.minuteMs, value: limitValue(value) });
+    output.push({ timestamp, value: limitValue(value) });
   }
   return { status: 'eligible', reason: null, lastSampleAt: anchorTime, current: anchor, points: output };
 }

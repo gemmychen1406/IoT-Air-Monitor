@@ -15,6 +15,15 @@ describe('short horizon forecasting', () => {
     const points = series([20, 21, 22, 23, 24, 25]);
     expect(predictAt(points, 'temperature', 'linear', START + mins(5), START + mins(10))).toBeCloseTo(30);
   });
+  it('predicts simple models at the exact raw-sample horizon, including seconds', () => {
+    const points = series([20, 21, 22, 23, 24, 25]);
+    const sampledAt = START + mins(5) + 45_000;
+    const result = forecastMeasure(points, 'temperature', 'linear', 15, sampledAt, sampledAt, 25);
+    expect(result.status).toBe('eligible');
+    expect(result.lastSampleAt).toBe(sampledAt);
+    expect(result.points.at(-1)?.timestamp).toBe(sampledAt + mins(15));
+    expect(result.points.at(-1)?.value).toBeCloseTo(40.75);
+  });
   it('Holt does not double-update the second observation', () => {
     const points = series([20, 22, 24, 26, 28, 30]);
     expect(predictAt(points, 'temperature', 'holt', START + mins(5), START + mins(10))).toBeCloseTo(40);

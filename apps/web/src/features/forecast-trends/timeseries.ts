@@ -116,13 +116,34 @@ export function fitLine(data: readonly { timestamp: number; value: number }[]) {
   return { origin, slope, intercept: my - slope * mx };
 }
 
+/**
+ * Trend regression uses a causal, trailing three-minute average.
+ * At least two real measurements must be present in that time window;
+ * missing buckets are never interpolated or filled with invented values.
+ * Duplicates at the same timestamp are collapsed to one equal-weight minute.
+ */
 export function analyzeTrend(points: readonly MinuteReading[], metric: Measure, nowMs: number, actualSampleAt?: number | null): TrendResult {
-  const last = latestValid(points, metric);
+  const buckets = new Map<number, { total: number; count: number }>();
+  for (const point of points) {
+    const value = point[metric];
+    if (!Number.isFinite(point.timestamp) || point.timestamp > nowMs ||
+      typeof value !== 'number' || !Number.isFinite(value) ||
+      (metric === 'temperature' && (value < -40 || value > 125)) ||
+      (metric === 'humidity' && (value < 0 || value > 100))) continue;
+    const bucket = buckets.get(point.timestamp) ?? { total: 0, count: 0 };
+    bucket.total += value;
+    bucket.count++;
+    buckets.set(point.timestamp, bucket);
+  }
+  const valid = [...buckets].sort(([a], [b]) => a - b).map(([timestamp, item]) => ({
+    timestamp, value: item.total / item.count,
+  }));
+  const last = valid.at(-1);
   const ageMs = last ? Math.max(0, nowMs - (actualSampleAt ?? last.timestamp)) : null;
   const window = last
-    ? points.filter((p) => p.timestamp >= last.timestamp - CFG.trendMinutes * CFG.minuteMs && p.timestamp <= last.timestamp && p[metric] !== null)
+    ? valid.filter((item) => item.timestamp >= last.timestamp - CFG.trendMinutes * CFG.minuteMs)
     : [];
-  const values = window.map((p) => p[metric] as number);
+  const values = window.map((item) => item.value);
   const result: TrendResult = {
     status: 'insufficient', slopePerMinute: null, current: last?.value ?? null,
     average: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -130,12 +151,26 @@ export function analyzeTrend(points: readonly MinuteReading[], metric: Measure, 
     maximum: values.length ? Math.max(...values) : null,
     sampleCount: values.length, lastSampleAt: last?.timestamp ?? null, ageMs,
   };
-  // Keep historical slope available when the sensor has stopped sending data;
-  // the status remains stale so this can never be mistaken for a live trend.
   const stale = ageMs !== null && ageMs > CFG.staleAfterMs;
-  if (window.length < CFG.regressionMinimum) return { ...result, status: stale ? 'stale' : 'insufficient' };
-  const line = fitLine(window.map((point) => ({ timestamp: point.timestamp, value: point[metric]! })));
-  if (!line) return { ...result, status: stale ? 'stale' : 'insufficient' };
+  const insufficient = (): TrendResult => ({ ...result, status: stale ? 'stale' : 'insufficient' });
+  if (window.length < CFG.regressionMinimum) return insufficient();
+  // With per-minute history, a gap over two minutes means at least two
+  // consecutive buckets are missing: do not report a confident trend.
+  if (window.some((item, i) => i > 0 && item.timestamp - window[i - 1]!.timestamp > CFG.trendMaxGapMinutes * CFG.minuteMs)) {
+    return insufficient();
+  }
+
+  const smoothed = window.flatMap((item, i) => {
+    const available = window.slice(0, i + 1).filter((previous) =>
+      previous.timestamp >= item.timestamp - (CFG.movingAverageMinutes - 1) * CFG.minuteMs);
+    return available.length >= 2
+      ? [{ timestamp: item.timestamp, value: available.reduce((sum, previous) => sum + previous.value, 0) / available.length }]
+      : [];
+  });
+  // Never silently regress on raw data when a smoothed series is unavailable.
+  if (smoothed.length < 2) return insufficient();
+  const line = fitLine(smoothed);
+  if (!line || !Number.isFinite(line.slope)) return insufficient();
   const stableThreshold = metric === 'temperature' ? CFG.temperatureStableSlope : CFG.humidityStableSlope;
   return {
     ...result, slopePerMinute: line.slope,
