@@ -128,6 +128,52 @@ for (const cfg of DEVICE_CONFIGS) {
   });
 }
 
+// 3. Tự động gán 4 trạm vào các phòng tương ứng để hiển thị trọn vẹn ở tab Tổng quan & Khu vực
+try {
+  let area = await db.monitoringArea.findFirst({ where: { nameKey: 'nha_mau_airguard' } });
+  if (!area) {
+    area = await db.monitoringArea.create({
+      data: {
+        name: 'Nhà mẫu AirGuard',
+        nameKey: 'nha_mau_airguard',
+        description: 'Hệ thống giám sát vi khí hậu hộ gia đình',
+        mapTemperatureC: 28,
+      },
+    });
+  }
+
+  const roomMap: Record<string, { name: string; key: string; x: number; y: number }> = {
+    'Trạm 1 - Khu Nhà Bếp': { name: 'Khu Nhà Bếp', key: 'khu_nha_bep', x: 0.25, y: 0.3 },
+    'Trạm 2 - Hầm Để Xe': { name: 'Hầm Để Xe', key: 'ham_de_xe', x: 0.5, y: 0.7 },
+    'Trạm 3 - Phòng Khách': { name: 'Phòng Khách', key: 'phong_khach', x: 0.7, y: 0.3 },
+    'Trạm 4 - Kho Gas Kỹ Thuật': { name: 'Kho Gas Kỹ Thuật', key: 'kho_gas', x: 0.85, y: 0.8 },
+  };
+
+  for (const dev of activeDevices) {
+    const rConfig = roomMap[dev.name];
+    if (rConfig) {
+      let room = await db.monitoringRoom.findFirst({ where: { areaId: area.id, nameKey: rConfig.key } });
+      if (!room) {
+        room = await db.monitoringRoom.create({
+          data: {
+            areaId: area.id,
+            name: rConfig.name,
+            nameKey: rConfig.key,
+            description: `Khu vực ${rConfig.name}`,
+          },
+        });
+      }
+      await db.deviceRoomAssignment.upsert({
+        where: { deviceId: dev.id },
+        create: { deviceId: dev.id, roomId: room.id, x: rConfig.x, y: rConfig.y },
+        update: { roomId: room.id, x: rConfig.x, y: rConfig.y },
+      });
+    }
+  }
+} catch {
+  // Bỏ qua nếu bảng chưa migrate
+}
+
 await db.$disconnect();
 
 console.log(`\n SẴN SÀNG GIẢ LẬP ĐỒNG THỜI ${activeDevices.length} TRẠM CẢM BIẾN:`);
