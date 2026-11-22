@@ -1,35 +1,285 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  Building2,
+  CircleCheck,
+  CircleHelp,
+  Clock3,
+  DoorOpen,
+  Map,
+  Radio,
+  TriangleAlert,
+  Wind,
+} from "lucide-react";
 import { Link } from "react-router";
-import type { DeviceView, IncidentView, SpacesView } from "@iot/contracts";
-import { dateText, LoadState, PageTitle } from "../components/FeatureUI.js";
-import { sensorFreshness } from "../lib/freshness.js";
-import { roomAir } from "../lib/room-air.js";
+import type { DeviceView, SpacesView } from "@iot/contracts";
+import { LoadState, PageTitle } from "../components/FeatureUI.js";
 import { api } from "../lib/api.js";
+import {
+  conditions,
+  fetchOpenIncidents,
+  historyPath,
+  incidentPath,
+  overviewStatus,
+  stationStatuses,
+  tones,
+  type OverviewAlert,
+  type Tone,
+} from "../lib/overview-status.js";
+import "./overview.css";
 
-export type OverviewAlert = {
-  device_id: string;
-  unresolved: boolean;
-  incident_id: string | null;
-  condition: IncidentView["condition"];
-  updated_at: string;
+export type { OverviewAlert } from "../lib/overview-status.js";
+
+type Status = ReturnType<typeof overviewStatus>;
+type Room = Status["rooms"][number];
+type Incident = Status["incidents"][number];
+
+const statusIcons = {
+  danger: TriangleAlert,
+  warning: TriangleAlert,
+  unknown: CircleHelp,
+  normal: CircleCheck,
 };
 
-function dataIssue(device: DeviceView, now: number) {
-  if (device.status === "never_seen") return "Chưa gửi dữ liệu lần nào";
-  if (device.status === "offline") return "Mất kết nối";
-  if (!device.latest) return "Chưa có số đo";
-  const reading = device.latest;
-  for (const [key, sensor] of Object.entries(reading.payload.sensors)) {
-    const freshness = sensorFreshness(
-      reading,
-      sensor.age_ms,
-      now,
-      key === "mq7" ? 180000 : 15000,
-    );
-    if (freshness !== "Dữ liệu mới") return freshness;
-  }
-  return null;
+function StatusMark({ tone, children }: { tone: Tone; children?: ReactNode }) {
+  const Icon = statusIcons[tone];
+  return (
+    <span className="overview-status" data-tone={tone}>
+      <Icon aria-hidden="true" />
+      {children ?? tones[tone]}
+    </span>
+  );
+}
+
+function IncidentName({ incident }: { incident: Incident }) {
+  const { station, condition } = incident;
+  return (
+    <>
+      {conditions[condition]} · {station.location}
+      {station.device.source_kind === "simulator" && " · Mô phỏng"}
+    </>
+  );
+}
+
+function Coverage({ rooms, showArea }: { rooms: Room[]; showArea: boolean }) {
+  if (!rooms.length) return null;
+  const complete = rooms.filter((room) => room.complete).length;
+  return (
+    <div className="overview-coverage">
+      <div className="overview-coverage-heading">
+        <h3>Số đo theo phòng</h3>
+        <strong>
+          {complete}/{rooms.length} phòng có đủ số đo
+        </strong>
+      </div>
+      <p className="overview-note">
+        Một phòng đủ số đo khi có cả Gas/khói và CO còn mới.
+      </p>
+      <ul className="overview-coverage-list">
+        {rooms.map((room) => (
+          <li key={room.room.id}>
+            <a href={`#overview-room-${room.room.id}`}>
+              {room.room.name}
+              {showArea && <small>{room.areaName}</small>}
+              <StatusMark tone={room.complete ? "normal" : "unknown"}>
+                {room.complete
+                  ? "Đủ số đo"
+                  : room.members.length
+                    ? "Thiếu số đo"
+                    : "Chưa gán thiết bị"}
+              </StatusMark>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RoomCard({ room }: { room: Room }) {
+  const { members, tone } = room;
+  const status = !room.incident && room.rank > 0 ? room.label : tones[tone];
+  return (
+    <article
+      id={`overview-room-${room.room.id}`}
+      tabIndex={-1}
+      className="panel overview-room"
+      data-tone={room.tone}
+    >
+      <div className="overview-room-heading">
+        <span className="overview-room-icon">
+          <DoorOpen aria-hidden="true" />
+        </span>
+        <div>
+          <h3>{room.room.name}</h3>
+          <p className="overview-note">
+            {room.areaName}
+            {room.simulated && " · Mô phỏng"}
+          </p>
+        </div>
+      </div>
+      {tone === "danger" || tone === "warning" ? (
+        <Link
+          className="overview-room-status overview-room-map-link"
+          to={`/app/spaces/${room.room.area_id}#ag-map-room-${room.room.id}`}
+          aria-label={`${status} · Xem sơ đồ phòng ${room.room.name}`}
+        >
+          <StatusMark tone={tone}>{status}</StatusMark>
+          <ArrowUpRight aria-hidden="true" />
+        </Link>
+      ) : (
+        <span className="overview-room-status">
+          <StatusMark tone={tone}>{status}</StatusMark>
+        </span>
+      )}
+      <dl className="overview-signals">
+        {room.signals.map((reading) => (
+          <div key={reading.name}>
+            <dt>{reading.name}</dt>
+            <dd>
+              <StatusMark
+                tone={
+                  reading.rank === null
+                    ? "unknown"
+                    : reading.rank === 0
+                      ? "normal"
+                      : reading.rank === 3
+                        ? "danger"
+                        : "warning"
+                }
+              >
+                {reading.rank === null ? "Chưa có số đo" : reading.label}
+              </StatusMark>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {members.length > 0 ? (
+        <details className="overview-devices">
+          <summary>
+            <Radio aria-hidden="true" />
+            <span className="overview-device-show">
+              Xem {members.length} thiết bị
+            </span>
+            <span className="overview-device-hide">
+              Thu gọn {members.length} thiết bị
+            </span>
+          </summary>
+          <ul>
+            {members.map(({ device }) => {
+              const status = stationStatuses[device.status];
+              return (
+                <li key={device.id}>
+                  <Link to={`/app/monitoring/${device.id}`}>
+                    <span>{device.name}</span>
+                    <StatusMark tone={status.tone}>{status.label}</StatusMark>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ) : (
+        <p className="overview-note">Chưa gán thiết bị</p>
+      )}
+    </article>
+  );
+}
+
+function Attention({
+  incidents,
+  stations,
+  checking,
+}: {
+  incidents: Status["incidents"];
+  stations: Status["stations"];
+  checking: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const items = [
+    ...incidents.map((incident) => ({
+      key:
+        incident.incident_id ?? `${incident.device_id}-${incident.condition}`,
+      device: incident.station.device,
+      label:
+        incident.condition === "flame"
+          ? conditions.flame
+          : `Cảnh báo ${conditions[incident.condition]}`,
+      location: incident.station.location,
+      tone: (incident.severity === "critical" ? "danger" : "warning") as Tone,
+      path: incidentPath(incident),
+    })),
+    ...stations.flatMap(({ device, issue, location }) =>
+      issue
+        ? [
+            {
+              key: device.id,
+              device,
+              label: issue,
+              location,
+              tone:
+                stationStatuses[device.status].tone === "normal"
+                  ? ("unknown" as const)
+                  : stationStatuses[device.status].tone,
+              path: `/app/monitoring/${device.id}`,
+            },
+          ]
+        : [],
+    ),
+  ];
+  return (
+    <aside
+      className="panel overview-attention"
+      aria-labelledby="overview-attention-title"
+    >
+      <h2 id="overview-attention-title">
+        <Activity aria-hidden="true" /> Cần chú ý
+      </h2>
+      {items.length ? (
+        <>
+          <ul>
+            {(expanded ? items : items.slice(0, 3)).map((item) => (
+              <li key={item.key}>
+                <Link to={item.path}>
+                  <div className="overview-attention-copy">
+                    <strong>{item.device.name}</strong>
+                    <StatusMark tone={item.tone}>{item.label}</StatusMark>
+                    <small>
+                      {item.location}
+                      {item.device.source_kind === "simulator" && " · Mô phỏng"}
+                    </small>
+                  </div>
+                  <ArrowUpRight aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {items.length > 3 && (
+            <button
+              type="button"
+              className="overview-more"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? "Thu gọn" : `Xem thêm ${items.length - 3} mục`}
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="overview-note">
+          {checking
+            ? "Đang kiểm tra trạng thái sự cố."
+            : stations.length
+              ? "Chưa ghi nhận sự cố đang mở hoặc thiết bị cần kiểm tra."
+              : "Chưa có thiết bị"}
+        </p>
+      )}
+    </aside>
+  );
 }
 
 export default function OverviewPage({
@@ -55,7 +305,7 @@ function HouseOverview({
   alerts?: OverviewAlert[];
 }) {
   const [now, setNow] = useState(Date.now);
-  const [expanded, setExpanded] = useState(false);
+  const [areaId, setAreaId] = useState<string>();
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
@@ -65,14 +315,18 @@ function HouseOverview({
     queryFn: () => api<SpacesView>("/spaces"),
     refetchInterval: 10000,
   });
+  const open = useQuery({
+    queryKey: ["incidents", "overview-open"],
+    queryFn: ({ signal }) => fetchOpenIncidents(signal),
+    refetchInterval: 10000,
+  });
   const daily = useQuery({
     queryKey: ["incidents", "overview-day"],
     queryFn: () =>
       api<{ opened: number; ended: number }>("/alerts/overview-day"),
     refetchInterval: 60000,
   });
-  const catalog = spaces.data;
-  if (!catalog || spaces.isError)
+  if (!spaces.data || spaces.isError)
     return (
       <LoadState
         pending={spaces.isPending}
@@ -80,213 +334,249 @@ function HouseOverview({
         retry={() => void spaces.refetch()}
       />
     );
-  const activeAreas = new Map(
-    catalog.areas
-      .filter((area) => !area.archived_at)
-      .map((area) => [area.id, area.name]),
+
+  const checking = !open.isSuccess && alerts === undefined;
+  const incidents = open.isSuccess
+    ? open.data
+    : (alerts ?? []).map((alert) => ({ ...alert, severity: null }));
+  const status = overviewStatus(spaces.data, devices, incidents, now);
+  const area = status.groups.find((group) => group.id === areaId);
+  const rooms = status.rooms.filter(
+    (room) => !area || area.id === room.room.area_id,
   );
-  const activeRooms = catalog.rooms.filter(
-    (room) => !room.archived_at && activeAreas.has(room.area_id),
+  const scopedIncidents = status.incidents.filter(
+    (incident) => !area || area.id === incident.station.room?.area_id,
   );
-  const rooms = new Map(activeRooms.map((room) => [room.id, room.name]));
-  const assignments = new Map(
-    catalog.devices
-      .filter((device) => !device.archived_at)
-      .map((device) => [device.id, device.room_id]),
+  const stations = status.stations.filter(
+    (station) => !area || area.id === station.room?.area_id,
   );
-  function station(device: DeviceView) {
-    const room = rooms.get(assignments.get(device.id) ?? "");
-    return [room, device.name, device.source_kind === "simulator" && "Mô phỏng"]
-      .filter(Boolean)
-      .join(" · ");
-  }
-  const stations = new Map(devices.map((device) => [device.id, device]));
-  const incidents = (alerts ?? [])
-    .filter((alert) => alert.unresolved && stations.has(alert.device_id))
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  const issues = devices.flatMap((device) => {
-    const reason = dataIssue(device, now);
-    return reason ? [{ device, reason }] : [];
-  });
-  const members = new Map<string, DeviceView[]>();
-  for (const device of devices) {
-    const roomId = assignments.get(device.id);
-    if (roomId && rooms.has(roomId)) {
-      const assigned = members.get(roomId) ?? [];
-      assigned.push(device);
-      members.set(roomId, assigned);
-    }
-  }
-  const readings = activeRooms
-    .map((room) => {
-      const assigned = members.get(room.id) ?? [];
-      const physical = assigned.filter(
-        (device) => device.source_kind === "physical",
-      );
-      const simulated = assigned.length > 0 && !physical.length;
-      return {
-        key: room.id,
-        name: room.name,
-        area: activeAreas.get(room.area_id),
-        devices: assigned,
-        simulated,
-        ...roomAir(physical.length ? physical : assigned, now),
-      };
-    })
-    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name, "vi"));
-  const hasPhysical = readings.some(
-    (room) => room.devices.length && !room.simulated,
+  const outside = area
+    ? status.groups.filter(
+        (group) =>
+          group.id !== area.id &&
+          (group.tone === "danger" || group.tone === "warning"),
+      )
+    : [];
+  const unassigned = status.incidents.filter(
+    (incident) => !incident.station.room,
   );
-  const observed = readings.filter((room) => !hasPhysical || !room.simulated);
-  const demoOnly = !hasPhysical && readings.some((room) => room.simulated);
-  const highest = observed[0];
-  const elevated = highest?.signals
-    .filter((signal) => signal.rank === highest.rank)
-    .map((signal) => signal.name)
-    .join(" và ");
+  const showOutside = area && (outside.length > 0 || unassigned.length > 0);
+  const tone = area?.tone ?? status.totalTone;
+  const needsAttentionRoom = [...rooms]
+    .sort((a, b) => b.rank - a.rank)
+    .find((room) => room.rank > 0);
+  const leadIncident = scopedIncidents[0];
+  const roomsComplete = rooms.filter((room) => room.complete).length;
   const headline =
-    highest && highest.rank > 0
-      ? highest.name +
-        " · " +
-        elevated +
-        " ở mức " +
-        highest.label.toLocaleLowerCase("vi")
-      : observed.some((room) => room.complete)
-        ? "Tín hiệu khí trong ngưỡng bình thường tại các phòng đủ dữ liệu"
-        : "Chưa đủ dữ liệu để đánh giá không khí";
-  const rows = [
-    ...incidents.map((alert) => ({
-      key: alert.device_id + alert.condition,
-      station: station(stations.get(alert.device_id)!),
-      reason:
-        "Cảnh báo " + { gas: "gas", co: "CO", flame: "lửa" }[alert.condition],
-      time: "Cập nhật " + dateText(alert.updated_at),
-      path: alert.incident_id
-        ? "/app/alerts/" + alert.incident_id
-        : "/app/alerts?device_id=" + alert.device_id,
-      action: "Xem sự cố",
-    })),
-    ...issues.map(({ device, reason }) => ({
-      key: device.id,
-      station: station(device),
-      reason,
-      time: device.last_seen_at
-        ? "Liên lạc gần nhất " + dateText(device.last_seen_at)
-        : "",
-      path: "/app/monitoring/" + device.id,
-      action: "Kiểm tra trạm",
-    })),
-  ];
+    tone === "danger"
+      ? "Có dấu hiệu nguy hiểm"
+      : tone === "warning"
+        ? "Có nơi cần chú ý"
+        : !rooms.length
+          ? "Chưa có phòng để theo dõi"
+          : roomsComplete < rooms.length
+            ? roomsComplete
+              ? "Một số phòng còn thiếu số đo"
+              : "Chưa đủ số đo để đánh giá"
+            : checking
+              ? "Đang kiểm tra trạng thái sự cố"
+              : "Tín hiệu khí trong ngưỡng bình thường";
+  const mapPath = area ? `/app/spaces/${area.id}` : "/app/spaces";
+  const scopeLabel = area?.name ?? "Tất cả khu vực";
+
   return (
-    <div className="overview-sections">
-      {readings.length > 0 && (
-        <section className="panel overview-summary">
-          <p className="muted">
-            Chất lượng không khí hiện tại{demoOnly && " · Mô phỏng"}
-          </p>
-          <h2>{headline}</h2>
-          <p>
-            {observed.filter((room) => room.complete).length}/{observed.length}{" "}
-            khu vực có đủ tín hiệu gas/khói và CO. Mức hiển thị là ước tính từ
-            hai cảm biến khí.
-          </p>
-        </section>
-      )}
-      <section className="panel overview-section">
-        <h2>Không khí theo phòng</h2>
-        {!readings.length && (
-          <p>
-            Chưa có phòng đang hoạt động.{" "}
-            <Link to="/app/spaces">Quản lý khu vực và phòng</Link>
-          </p>
-        )}
-        {!devices.length && <p>Chưa có thiết bị</p>}
-        <div className="air-room-grid">
-          {readings.map((room) => (
-            <article className="air-room" key={room.key}>
-              <div>
-                <h3>{room.name}</h3>
-                <small className="muted">{room.area} </small>
-                {room.simulated && <small className="muted">Mô phỏng</small>}
-              </div>
-              <strong
-                className={
-                  "air-level air-level-" +
-                  (room.label === "Chưa đủ dữ liệu" ? "unknown" : room.rank)
+    <div className="overview-dashboard">
+      {status.groups.length > 0 && (
+        <div className="overview-areas" role="group" aria-label="Chọn khu vực">
+          <button
+            type="button"
+            className="overview-area"
+            aria-pressed={!area}
+            onClick={() => setAreaId(undefined)}
+          >
+            <span>
+              <Building2 aria-hidden="true" /> Tất cả khu vực
+            </span>
+            <StatusMark
+              tone={
+                checking && status.totalTone === "normal"
+                  ? "unknown"
+                  : status.totalTone
+              }
+            >
+              {checking && status.totalTone === "normal"
+                ? "Đang kiểm tra"
+                : undefined}
+            </StatusMark>
+          </button>
+          {status.groups.map((group) => (
+            <button
+              type="button"
+              key={group.id}
+              className="overview-area"
+              aria-pressed={area?.id === group.id}
+              onClick={() => setAreaId(group.id)}
+            >
+              <span>{group.name}</span>
+              <StatusMark
+                tone={
+                  checking && group.tone === "normal" ? "unknown" : group.tone
                 }
               >
-                {room.label}
-              </strong>
-              <dl>
-                {room.signals.map((signal) => (
-                  <div key={signal.name}>
-                    <dt>{signal.name}</dt>
-                    <dd>{signal.label}</dd>
-                  </div>
-                ))}
-              </dl>
-              {!room.devices.length && (
-                <p className="muted">Chưa gán thiết bị</p>
-              )}
-              {room.devices.map((device) => (
-                <Link key={device.id} to={"/app/monitoring/" + device.id}>
-                  {room.devices.length === 1 ? "Xem số đo" : device.name}
-                </Link>
-              ))}
-            </article>
+                {checking && group.tone === "normal"
+                  ? "Đang kiểm tra"
+                  : undefined}
+              </StatusMark>
+            </button>
           ))}
         </div>
-      </section>
-      <details className="panel overview-section">
-        <summary>
-          Sự cố và tình trạng thiết bị
-          {incidents.length > 0 && " · " + incidents.length + " sự cố đang mở"}
-        </summary>
-        {rows.length ? (
-          <ul>
-            {(expanded ? rows : rows.slice(0, 5)).map((row) => (
-              <li key={row.key}>
-                <div>
-                  <strong>{row.station}</strong>
-                  <p>{row.reason}</p>
-                  {row.time && <small className="muted">{row.time}</small>}
-                </div>
-                <Link to={row.path}>{row.action}</Link>
-              </li>
+      )}
+      {showOutside && (
+        <div
+          className="overview-outside"
+          data-tone={
+            outside.some((group) => group.tone === "danger") ||
+            unassigned.some((incident) => incident.severity === "critical")
+              ? "danger"
+              : "warning"
+          }
+          role="status"
+        >
+          <TriangleAlert aria-hidden="true" />
+          <div>
+            <strong>Cần chú ý ngoài khu vực đang xem</strong>
+            <p>
+              {[
+                ...outside.map((group) => group.name),
+                unassigned.length > 0 &&
+                  `${unassigned.length} sự cố ở thiết bị chưa gán phòng`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+          <button type="button" onClick={() => setAreaId(undefined)}>
+            Xem tất cả khu vực
+          </button>
+        </div>
+      )}
+      <div className="overview-top">
+        <section
+          className="panel overview-main"
+          data-tone={checking && tone === "normal" ? "unknown" : tone}
+          aria-labelledby="overview-status-title"
+        >
+          <div className="overview-headline">
+            <span className="overview-hero-icon">
+              <Wind aria-hidden="true" />
+            </span>
+            <div>
+              <p className="overview-note">
+                {scopeLabel}
+                {rooms.length > 0 &&
+                  rooms.every((room) => room.simulated) &&
+                  " · Mô phỏng"}
+              </p>
+              <h2 id="overview-status-title">{headline}</h2>
+              {leadIncident && (
+                <p>
+                  <IncidentName incident={leadIncident} />
+                </p>
+              )}
+              {needsAttentionRoom && (
+                <p>
+                  {needsAttentionRoom.areaName} / {needsAttentionRoom.room.name}{" "}
+                  ·{" "}
+                  {needsAttentionRoom.signals
+                    .filter((signal) => signal.rank === needsAttentionRoom.rank)
+                    .map((signal) => signal.name)
+                    .join(" và ")}{" "}
+                  · {needsAttentionRoom.label}
+                  {needsAttentionRoom.simulated && " · Mô phỏng"}
+                </p>
+              )}
+              <div className="overview-actions">
+                <Link className="overview-action" to={mapPath}>
+                  <Map aria-hidden="true" />
+                  {area ? "Xem sơ đồ khu vực" : "Xem khu vực và phòng"}
+                </Link>
+              </div>
+            </div>
+          </div>
+          <Coverage
+            rooms={rooms}
+            showArea={!area && status.groups.length > 1}
+          />
+          {open.isError && (
+            <p className="overview-note">
+              Chưa tải được mức độ sự cố.{" "}
+              <button type="button" onClick={() => void open.refetch()}>
+                Thử lại
+              </button>
+            </p>
+          )}
+        </section>
+        <Attention
+          key={area?.id ?? "all"}
+          incidents={scopedIncidents}
+          stations={stations}
+          checking={checking}
+        />
+      </div>
+      <section
+        className="overview-rooms"
+        aria-labelledby="overview-rooms-title"
+      >
+        <h2 id="overview-rooms-title">Không khí theo phòng</h2>
+        {rooms.length ? (
+          <div className="overview-room-grid">
+            {rooms.map((room) => (
+              <RoomCard key={room.room.id} room={room} />
             ))}
-          </ul>
+          </div>
         ) : (
-          <p>
-            {!devices.length
-              ? "Chưa có trạm để theo dõi."
-              : alerts
-                ? "Các trạm đều có dữ liệu mới và chưa ghi nhận sự cố đang mở."
-                : "Các trạm đều có dữ liệu mới. Chưa xác định được trạng thái sự cố."}
+          <p className="overview-note">
+            Thêm phòng và gán thiết bị trong Khu vực &amp; phòng để xem số đo.
           </p>
         )}
-        {rows.length > 5 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-          >
-            {expanded ? "Thu gọn" : "Xem thêm " + (rows.length - 5) + " mục"}
-          </button>
-        )}
-      </details>
-      <section className="panel overview-section">
-        <h2>Diễn biến 24 giờ qua</h2>
+      </section>
+      <section
+        className="panel overview-history"
+        aria-labelledby="overview-history-title"
+      >
+        <header className="overview-history-header">
+          <span className="overview-room-icon">
+            <Clock3 aria-hidden="true" />
+          </span>
+          <div>
+            <h2 id="overview-history-title">Diễn biến 24 giờ qua</h2>
+            <p className="overview-note">Toàn hệ thống</p>
+          </div>
+          <Link className="overview-action" to={historyPath(now)}>
+            Xem chi tiết <ArrowRight aria-hidden="true" />
+          </Link>
+        </header>
         <LoadState
           pending={daily.isPending}
           error={daily.error}
           retry={() => void daily.refetch()}
         />
         {daily.isSuccess && (
-          <p>
-            <strong>{daily.data.opened}</strong> sự cố phát sinh ·{" "}
-            <strong>{daily.data.ended}</strong> sự cố đã kết thúc
-          </p>
+          <dl className="overview-counts">
+            <div className="overview-count-opened">
+              <dt>
+                <ArrowUpRight aria-hidden="true" /> Sự cố phát sinh
+              </dt>
+              <dd>{daily.data.opened}</dd>
+            </div>
+            <div className="overview-count-ended">
+              <dt>
+                <ArrowDownRight aria-hidden="true" /> Sự cố đã kết thúc
+              </dt>
+              <dd>{daily.data.ended}</dd>
+            </div>
+          </dl>
         )}
-        <Link to="/app/alerts">Xem lịch sử sự cố</Link>
       </section>
     </div>
   );

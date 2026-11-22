@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { ArrowUpRight } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import type { DeviceView, IncidentView } from '@iot/contracts';
 import { apiPage } from '../lib/api.js';
 import { PageTitle, LoadState, dateText, conditionText } from '../components/FeatureUI.js';
+import './alerts-list.css';
 
 const fieldFilters = ['device_id', 'condition', 'severity', 'status', 'acknowledged'] as const;
 const dateFilters = ['from', 'to'] as const;
@@ -129,7 +131,7 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
       {filterError ? <p role="alert">{filterError}</p> : null}
       <LoadState pending={list.isPending} error={list.error} retry={() => void list.refetch()} />
       {list.data ? (
-        <div className="panel table-wrap">
+        <div className="panel table-wrap alerts-list">
           <table>
             <thead>
               <tr>
@@ -139,39 +141,46 @@ export default function AlertsPage({ devices }: { devices: DeviceView[] }) {
                 <th>Trạng thái</th>
                 <th>Bắt đầu / nhận đầu tiên</th>
                 <th>Xác nhận</th>
-                <th>Chi tiết</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((i) => (
-                <tr key={i.id}>
-                  <td>
-                    {i.device_name}
-                    {i.source_kind === 'simulator' ? (
-                      <span className="badge simulation">Mô phỏng</span>
-                    ) : null}
-                  </td>
-                  <td>{conditionText[i.condition]}</td>
-                  <td>
-                    <span className={`badge ${i.severity === 'critical' ? 'danger' : ''}`}>
-                      {i.severity}
-                    </span>
-                  </td>
-                  <td>{i.status === 'active' ? 'Chưa kết thúc' : 'Đã kết thúc'}</td>
-                  <td>
-                    {dateText(i.started_at ?? i.first_observed_at)}
-                    {!i.started_at ? (
-                      <small className="device-id">
-                        Thời điểm server quan sát, chưa biết lúc bắt đầu
-                      </small>
-                    ) : null}
-                  </td>
-                  <td>{i.acknowledgement ? 'Đã xác nhận' : 'Chưa xác nhận'}</td>
-                  <td>
-                    <Link to={`/app/alerts/${i.id}`}>Chi tiết</Link>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((i) => {
+                const condition = conditionText[i.condition];
+                const time = dateText(i.started_at ?? i.first_observed_at);
+                return (
+                  <tr key={i.id}>
+                    <td>
+                      <Link
+                        className="alerts-list-link"
+                        to={`/app/alerts/${i.id}`}
+                        aria-label={`${i.device_name} · ${condition} · ${time} · Mở chi tiết`}
+                      >
+                        {i.device_name}
+                        <ArrowUpRight aria-hidden="true" />
+                      </Link>
+                      {i.source_kind === 'simulator' ? (
+                        <span className="badge simulation">Mô phỏng</span>
+                      ) : null}
+                    </td>
+                    <td>{condition}</td>
+                    <td>
+                      <span className={`badge ${i.severity === 'critical' ? 'danger' : ''}`}>
+                        {i.severity}
+                      </span>
+                    </td>
+                    <td>{i.status === 'active' ? 'Chưa kết thúc' : 'Đã kết thúc'}</td>
+                    <td>
+                      {time}
+                      {!i.started_at ? (
+                        <small className="device-id">
+                          Thời điểm server quan sát, chưa biết lúc bắt đầu
+                        </small>
+                      ) : null}
+                    </td>
+                    <td>{i.acknowledgement ? 'Đã xác nhận' : 'Chưa xác nhận'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {!rows.length ? <div className="empty">Không có sự cố phù hợp bộ lọc.</div> : null}

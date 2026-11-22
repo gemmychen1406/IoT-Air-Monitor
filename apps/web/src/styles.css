@@ -1005,27 +1005,3 @@ textarea {
 .settings-column { display:grid; grid-template-columns:minmax(0,1fr); width:min(100%,800px); gap:16px; }
 .settings-column > section { margin:0; width:100%; }
 .settings-column a { display:inline-flex; align-items:center; min-height:44px; }
-
-.overview-sections { display: grid; gap: 16px; }
-.overview-summary, .overview-section { padding: clamp(16px, 3vw, 26px); }
-.overview-summary { border-inline-start: 4px solid var(--accent); }
-.overview-summary h2 { font-size: clamp(22px, 3vw, 32px); margin-block: 5px 10px; }
-.overview-section h2 { margin: 0 0 12px; }
-.overview-section ul { list-style: none; margin: 0; padding: 0; }
-.overview-section li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-block: 12px; border-top: 1px solid var(--border); }
-.overview-section li div { min-width: 0; overflow-wrap: anywhere; }
-.overview-section li p { margin: 2px 0; }
-.overview-section a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-
-.air-room-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr)); }
-.air-room { padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
-.air-room h3 { margin: 0; }
-.air-room dl { margin: 12px 0; }
-.air-room dl div { display: flex; justify-content: space-between; gap: 10px; }
-.air-room dd { margin: 0; }
-.air-room a { display: block; }
-.air-level { display: inline-block; margin-top: 8px; padding: 2px 9px; border-radius: 6px; color: var(--text); background: var(--border); }
-.air-level-0 { background: #d1fae5; color: #065f46; }
-.air-level-1 { background: #fef3c7; color: #854d0e; }
-.air-level-2, .air-level-3 { background: #ffe4e6; color: #9f1239; }
-.overview-section summary { cursor: pointer; font-weight: 600; }

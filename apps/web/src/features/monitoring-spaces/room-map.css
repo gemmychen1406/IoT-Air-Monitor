@@ -437,7 +437,8 @@
   border-color: color-mix(in srgb, var(--map-alert-ink) 60%, var(--border));
 }
 
-.ag-map-room[data-selected='true'] {
+.ag-map-room[data-selected='true'],
+.ag-map-room:focus-visible {
   box-shadow: 0 0 0 2px var(--map-alert-ink, var(--accent));
 }
 
