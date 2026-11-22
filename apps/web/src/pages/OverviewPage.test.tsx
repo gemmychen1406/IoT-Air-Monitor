@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
@@ -60,24 +66,23 @@ it("prioritizes open incidents, distinguishes missing data and links to the affe
             ],
             devices: [{ id: "c", room_id: "room" }],
           }
-        : { opened: 4, ended: 3 },
+        : url.includes("/alerts/incidents?")
+          ? [
+              {
+                id: "fire",
+                device_id: "c",
+                condition: "flame",
+                severity: "critical",
+                started_at: payload.sampled_at,
+              },
+            ]
+          : { opened: 4, ended: 3 },
     }),
   );
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <OverviewPage
-          devices={devices}
-          alerts={[
-            {
-              device_id: "c",
-              incident_id: "fire",
-              condition: "flame",
-              unresolved: true,
-              updated_at: payload.sampled_at,
-            },
-          ]}
-        />
+        <OverviewPage devices={devices} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -85,22 +90,41 @@ it("prioritizes open incidents, distinguishes missing data and links to the affe
   expect(screen.getAllByRole("article")).toHaveLength(2);
   expect(screen.queryByRole("heading", { name: "Ban công" })).toBeNull();
   expect(screen.queryByRole("heading", { name: "Phòng cũ" })).toBeNull();
-  screen.getByText(/Sự cố và tình trạng thiết bị/).click();
-  await screen.findAllByText("Bếp · Trạm C · Mô phỏng");
-  const first = within(screen.getAllByRole("listitem")[0]!);
-  expect(first.getByText("Cảnh báo lửa")).toBeInTheDocument();
+  await screen.findByRole("heading", { name: "Có dấu hiệu nguy hiểm" });
+  const attention = within(
+    screen.getByRole("complementary", { name: "Cần chú ý" }),
+  );
+  const first = within(attention.getAllByRole("listitem")[0]!);
+  expect(first.getByText("Trạm C")).toBeInTheDocument();
+  expect(first.getByText("Phát hiện lửa")).toBeInTheDocument();
+  expect(first.getByText("Nhà / Bếp · Mô phỏng")).toBeInTheDocument();
   expect(first.getByRole("link")).toHaveAttribute("href", "/app/alerts/fire");
+  expect(
+    screen.getByRole("link", { name: /Xem sơ đồ phòng Bếp/ }),
+  ).toHaveAttribute("href", "/app/spaces/home#ag-map-room-room");
+  fireEvent.click(attention.getByRole("button", { name: /Xem thêm/ }));
   for (const [reason, id] of [
-    ["Chưa gửi dữ liệu lần nào", "a"],
+    ["Chưa gửi dữ liệu", "a"],
     ["Mất kết nối", "b"],
     ["Dữ liệu cũ", "c"],
   ] as const) {
     expect(
-      within(screen.getByText(reason).closest("li")!).getByRole("link"),
+      within(attention.getByText(reason).closest("li")!).getByRole("link"),
     ).toHaveAttribute("href", "/app/monitoring/" + id);
   }
-  expect(screen.getByText(/0\/2 khu vực có đủ tín hiệu/)).toBeInTheDocument();
-  expect(screen.getByText(/sự cố phát sinh/)).toHaveTextContent(
-    "4 sự cố phát sinh · 3 sự cố đã kết thúc",
+  expect(screen.getByText("0/2 phòng có đủ số đo")).toBeInTheDocument();
+  const history = within(
+    screen.getByRole("region", { name: "Diễn biến 24 giờ qua" }),
   );
+  expect(history.getByText("4")).toBeInTheDocument();
+  expect(history.getByText("3")).toBeInTheDocument();
+  const detailUrl = new URL(
+    history.getByRole("link", { name: "Xem chi tiết" }).getAttribute("href")!,
+    "http://localhost",
+  );
+  const { pathname, searchParams } = detailUrl;
+  expect(pathname).toBe("/app/alerts");
+  expect(
+    Date.parse(searchParams.get("to")!) - Date.parse(searchParams.get("from")!),
+  ).toBe(86400000);
 });

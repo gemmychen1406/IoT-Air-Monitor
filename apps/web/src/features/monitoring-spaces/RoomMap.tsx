@@ -6,7 +6,7 @@ import {
   type MouseEvent,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import {
   AlertOctagon,
   ArrowUpRight,
@@ -122,6 +122,7 @@ function RoomTile({
   return (
     <article
       id={`ag-map-room-${room.id}`}
+      tabIndex={-1}
       className="ag-map-room"
       aria-label={room.name}
       data-archived={!!room.archived_at}
@@ -518,6 +519,7 @@ export default function RoomMap({
   canEdit: boolean;
 }) {
   const client = useQueryClient();
+  const { hash } = useLocation();
   const [selected, setSelected] = useState<string | null>(null);
   const [focusedIncident, setFocusedIncident] = useState<string | null>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
@@ -533,6 +535,13 @@ export default function RoomMap({
     enabled: !!area,
     refetchInterval: 5000,
   });
+  const linkedRoomId = map.data?.rooms.find((room) => hash === `#ag-map-room-${room.id}`)?.id;
+  useEffect(() => {
+    if (!linkedRoomId) return;
+    const tile = document.getElementById(`ag-map-room-${linkedRoomId}`);
+    tile?.focus({ preventScroll: true });
+    tile?.scrollIntoView({ block: 'start' });
+  }, [linkedRoomId]);
   const save = useMutation({
     mutationFn: ({ path, body }: { path: string; body: object }) =>
       api(path, { method: 'PUT', body: JSON.stringify(body) }),
