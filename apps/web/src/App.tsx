@@ -1,25 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useLocation, NavLink, Navigate, Route, Routes, Link } from 'react-router';
+import { useLocation, Navigate, Route, Routes } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
-import {
-  Activity,
-  LayoutDashboard,
-  Radio,
-  Cpu,
-  Settings,
-  LogOut,
-  Bell,
-  Sun,
-  Moon,
-  Users,
-  ScrollText,
-  GitCompareArrows,
-  Building2,
-  ContactRound,
-  Sparkles,
-  TrendingUp, // [FORECAST - SUA FILE CHUNG] Icon cho menu Xu huong & Du bao
-} from 'lucide-react';
+import { LogOut, Sun, Moon } from 'lucide-react';
+import { AppShell } from './components/AppShell.js';
 import type { DeviceView } from '@iot/contracts';
 import { api, HttpError } from './lib/api.js';
 import { createRefetchBatcher } from './lib/refetch-batcher.js';
@@ -47,32 +31,6 @@ const ForecastPage = lazy(() => import('./features/forecast-trends/ForecastPage.
 const ComparisonReportingPage = lazy(
   () => import('./features/comparison-reporting/ComparisonReportingPage.js'),
 );
-const navigation = [
-  {title:'Giám sát', links:[
-    {path:'overview', icon:LayoutDashboard, label:'Tổng quan'},
-    {path:'monitoring', icon:Radio, label:'Giám sát trực tiếp'},
-    {path:'smart-monitoring', icon:Sparkles, label:'Giám sát thông minh'},
-    {path:'alerts', icon:Bell, label:'Cảnh báo & sự cố'},
-    {path:'notifications', icon:ScrollText, label:'Lịch sử gửi'},
-  ]},
-  {title:'Không gian & thiết bị', links:[
-    {path:'spaces', icon:Building2,label:'Khu vực & phòng'},
-    {path:'device-diagnostics', icon:Activity, label:'Kiểm tra thiết bị'},
-    {path:'devices', icon:Cpu,label:'Thiết bị'},
-  ]},
-  {title:'Phân tích',links:[
-    // [FORECAST - SUA FILE CHUNG] Them muc menu vao nhom Phan tich.
-    {path:'forecast',icon:TrendingUp,label:'Giám sát & Dự báo'},
-    {path:'comparison-reporting',icon:GitCompareArrows,label:'Phân tích & báo cáo'},
-  ]},
-  {title:'Cấu hình & quản trị',links:[
-    {path:'settings',icon:Settings,label:'Cài đặt'},
-    {path:'support-contacts',icon:ContactRound,label:'Danh bạ hỗ trợ',admin:true},
-    {path:'users',icon:Users,label:'Tài khoản',admin:true},
-    {path:'audit',icon:ScrollText,label:'Nhật ký quản trị',admin:true},
-  ]},
-];
-
 export function App() {
   const path = useLocation().pathname;
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -233,24 +191,9 @@ export function App() {
   if (!session)
     return <LoginPage onLogin={(value) => queryClient.setQueryData(['session'], value)} />;
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <Link to="/app/overview" className="brand">
-          <span className="brand-icon">
-            <Activity />
-          </span>
-          AirGuard
-        </Link>
-        <nav aria-label="Điều hướng chính">
-          {navigation.map(group => <div role="group" aria-label={group.title} className="nav-group" key={group.title}>
-            <span className="sidebar-label">{group.title}</span>
-            {group.links.filter(item => !('admin' in item) || session.user.role === 'admin').map(({path,icon:Icon,label}) =>
-              <NavLink key={path} to={`/app/${path}`}><Icon size={19}/>{label}</NavLink>)}
-          </div>)}
-        </nav>
-      </aside>
-      <div className="workspace">
-        <header className="topbar">
+    <AppShell
+      role={session.user.role}
+      headerActions={
           <div className="topbar-actions">
             <span className={`badge ${connected ? 'success' : ''}`}>
               <span className={`status-dot ${connected ? 'online' : 'offline'}`} />
@@ -267,7 +210,8 @@ export function App() {
             </button>
             <div className="avatar">{session.user.email.slice(0, 1).toUpperCase()}</div>
           </div>
-        </header>
+      }
+    >
         <main className="content">
           {logoutError ? (
             <p className="notice error" role="alert">
@@ -348,7 +292,6 @@ export function App() {
             </Routes>
           </Suspense>
         </main>
-      </div>
-    </div>
+    </AppShell>
   );
 }
