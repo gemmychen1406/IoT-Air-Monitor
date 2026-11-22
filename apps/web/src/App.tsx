@@ -99,6 +99,8 @@ export function App() {
       withCredentials: true,
       autoConnect: false,
       transports: import.meta.env.PROD ? ['polling'] : undefined,
+      // Vercel forwards /socket.io and serves the SPA for /socket.io/.
+      addTrailingSlash: !import.meta.env.PROD,
     });
     const batcher = createRefetchBatcher((key) => {
       void queryClient.invalidateQueries({ queryKey: [key] });
