@@ -64,7 +64,7 @@ export async function diagnosticSummary(
     CROSS JOIN LATERAL (
       SELECT id, received_at, payload FROM sensor_readings
       WHERE device_id = d.id AND received_at >= ${from} AND received_at < ${to}
-      ORDER BY received_at DESC, id DESC LIMIT 1201
+      ORDER BY received_at DESC, id DESC LIMIT 1200
     ) r WHERE d.archived_at IS NULL ORDER BY d.id, r.received_at, r.id`;
   const byDevice = new Map<string, typeof records>();
   for (const r of records) {
@@ -84,7 +84,6 @@ export async function diagnosticSummary(
       );
       const limited =
         device.rollups.length > 0 ||
-        raw.length > 1200 ||
         raw.some((r) => !intervals[r.payload.config_version]);
       const readings = raw.map((r) => ({
         id: String(r.id),
@@ -105,7 +104,13 @@ export async function diagnosticSummary(
               baseline: null,
               statuses: [],
             },
-            { ...options, from: from.toISOString(), to: to.toISOString() },
+            // The summary describes current evidence in the newest bounded sample window.
+            // Older samples outside that window do not indicate a device problem.
+            {
+              ...options,
+              from: readings[0]?.received_at ?? from.toISOString(),
+              to: to.toISOString(),
+            },
           ).notices;
       if (offline) {
         notices.splice(0, notices.length, {
@@ -125,7 +130,8 @@ export async function diagnosticSummary(
           id: "partial",
           level: "info",
           title: "Chưa đủ dữ liệu để kết luận",
-          evidence: "Lịch sử gần đây vượt giới hạn hoặc thiếu cấu hình.",
+          evidence:
+            "Lịch sử gần đây có dữ liệu đã tổng hợp hoặc thiếu phiên bản cấu hình của mẫu.",
           action: "Mở chi tiết và thu hẹp khoảng kiểm tra.",
         });
       }
