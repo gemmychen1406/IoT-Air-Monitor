@@ -29,7 +29,17 @@ export function walkForward(
   postProcess: (value: number) => number = (value) => value,
   window?: WalkForwardWindow,
 ): ValidationRow[] {
-  const sorted = [...points].filter((point) => point[metric] !== null).sort((a, b) => a.timestamp - b.timestamp);
+  // Only measured, physically valid samples can be origins or observed targets.
+  // One unique minute timestamp corresponds to one real forecast opportunity.
+  const unique = new Map<number, MinuteReading>();
+  for (const point of points) {
+    const value = point[metric];
+    if (!Number.isFinite(point.timestamp) || typeof value !== 'number' || !Number.isFinite(value) ||
+      (metric === 'humidity' && (value < 0 || value > 100)) ||
+      (metric === 'temperature' && (value < -40 || value > 125))) continue;
+    unique.set(point.timestamp, point);
+  }
+  const sorted = [...unique.values()].sort((a, b) => a.timestamp - b.timestamp);
   const models: ForecastModel[] = ['naive', 'linear', 'holt'];
   const completed: { targetAt: number; errors: number[] }[] = [];
   let skipped = 0;
@@ -84,7 +94,15 @@ export function validationTrace(
   points: readonly MinuteReading[], metric: Measure, model: ForecastModel, horizon: 15 | 30,
   clamp: (value: number) => number = (value) => value,
 ): ValidationSample[] {
-  const sorted = [...points].filter((p) => p[metric] !== null).sort((a, b) => a.timestamp - b.timestamp);
+  const unique = new Map<number, MinuteReading>();
+  for (const point of points) {
+    const value = point[metric];
+    if (!Number.isFinite(point.timestamp) || typeof value !== 'number' || !Number.isFinite(value) ||
+      (metric === 'humidity' && (value < 0 || value > 100)) ||
+      (metric === 'temperature' && (value < -40 || value > 125))) continue;
+    unique.set(point.timestamp, point);
+  }
+  const sorted = [...unique.values()].sort((a, b) => a.timestamp - b.timestamp);
   const output: ValidationSample[] = [];
   const advanced = model === 'random_forest' || model === 'holt_winters';
   const firstOrigin = advanced ? Math.max(CFG.regressionMinimum - 1, sorted.length - 30 - horizon) : CFG.regressionMinimum - 1;

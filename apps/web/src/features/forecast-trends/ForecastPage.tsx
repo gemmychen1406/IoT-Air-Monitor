@@ -10,7 +10,8 @@ import { latestDhtSnapshot } from './latestDht.js';
 import { formatSensorValue } from '../../lib/sensor-display.js';
 import { FORECAST_CONFIG as CFG } from './config.js';
 import { fetchForecastHistory, type HistoryResponse } from './history.js';
-import { evaluateDhtAssessment } from './dhtAdvisory.js';
+import { describeDhtTrend, evaluateDhtAssessment } from './dhtAdvisory.js';
+import type { DhtAssessment } from './dhtAdvisory.js';
 import { analyzeTrend } from './timeseries.js';
 import { forecastMeasure } from './forecasting.js';
 import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './modelSelection.js';
@@ -31,12 +32,12 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 const trendNames = {
-  increasing: 'Đang tăng', decreasing: 'Đang giảm', stable: 'Ổn định',
+  increasing: 'Xu hướng tăng', decreasing: 'Xu hướng giảm', stable: 'Ít biến động (30 phút)',
   insufficient: 'Chưa đủ dữ liệu', stale: 'Dữ liệu cũ',
 };
 const models: { id: ForecastSelection; label: string }[] = [
-  { id: 'auto', label: 'Tự động (Khuyên dùng)' },
-  { id: 'naive', label: 'Naive (đối chứng)' },
+  { id: 'auto', label: 'Auto' },
+  { id: 'naive', label: 'Naive' },
   { id: 'linear', label: MODEL_LABELS.linear },
   { id: 'holt', label: MODEL_LABELS.holt },
   { id: 'random_forest', label: MODEL_LABELS.random_forest },
@@ -54,12 +55,16 @@ function forecastDeltaText(item: ReturnType<typeof forecastMeasure>, unit: strin
 }
 
 
-function CurrentCard({ title, metric, unit, trend, latestValue, freshness, historical }: {
+function CurrentCard({ title, metric, unit, trend, latestValue, freshness, historical, assessment, measure }: {
   title: string; metric: 'temperature_c' | 'humidity_pct'; unit: string;
-  trend: TrendResult; latestValue: number | null; freshness: string; historical: boolean;
+  trend: TrendResult; latestValue: number | null; freshness: string; historical: boolean; assessment: DhtAssessment; measure: 'temperature' | 'humidity';
 }) {
+  const noticed = assessment.notices.some((notice) => notice.title.startsWith(title));
+  const pending = assessment.pendingMetrics.includes(measure);
+  const statusClass = noticed ? 'watch' : pending ? 'checking' : trend.status;
+  const statusText = noticed ? 'Biến động đáng chú ý' : pending ? 'Đang xác minh' : trendNames[trend.status];
   return <article className="ft-metric">
-    <div className="ft-metric-heading"><span>{title}</span><span className={`ft-trend ft-${trend.status}`}>{trendNames[trend.status]}</span></div>
+    <div className="ft-metric-heading"><span>{title}</span><span className={`ft-trend ft-${statusClass}`}>{statusText}</span></div>
     <div className="ft-big-number">{formatSensorValue(metric, latestValue)} <small>{unit}</small></div>
     <p className="ft-live-label">Mẫu cuối của thiết bị · {freshness}</p>
     <div className="ft-metric-bottom">
@@ -74,6 +79,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [selectedId, setSelectedId] = useState('');
   const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
+  const [chartView, setChartView] = useState<'future' | 'context'>('future');
   const [showValidation, setShowValidation] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const queryClient = useQueryClient();
@@ -182,25 +188,31 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
         <div className="ft-meta"><Radio size={15} /> Mẫu DHT11 hợp lệ cuối: {fmtTime(latestSampleAt)}{dataStale ? <span className="ft-stale"> · Thiết bị đã ngừng gửi dữ liệu mới – không dự báo thời gian thực</span> : null}</div>
         {tab === 'trend' ? <>
           <div className="ft-two-cards">
-            <CurrentCard title="Nhiệt độ" metric="temperature_c" unit="°C" trend={temperatureTrend} latestValue={live?.temperature ?? null} freshness={live?.freshness ?? 'Chưa có mẫu'} historical={dataStale} />
-            <CurrentCard title="Độ ẩm" metric="humidity_pct" unit="%RH" trend={humidityTrend} latestValue={live?.humidity ?? null} freshness={live?.freshness ?? 'Chưa có mẫu'} historical={dataStale} />
+            <CurrentCard title="Nhiệt độ" metric="temperature_c" unit="°C" trend={temperatureTrend} latestValue={live?.temperature ?? null} freshness={live?.freshness ?? 'Chưa có mẫu'} historical={dataStale} assessment={dhtAssessment} measure="temperature" />
+            <CurrentCard title="Độ ẩm" metric="humidity_pct" unit="%RH" trend={humidityTrend} latestValue={live?.humidity ?? null} freshness={live?.freshness ?? 'Chưa có mẫu'} historical={dataStale} assessment={dhtAssessment} measure="humidity" />
           </div>
           <MoistureIndicators temperature={live?.temperature ?? null} humidity={live?.humidity ?? null} />
           <section className="panel ft-dht-notices"><div className="ft-section-bar"><h2><Activity size={19}/> Nhận định biến động nhiệt độ và độ ẩm</h2></div>
             <div role="status" className={`ft-dht-assessment ft-dht-assessment-${dhtAssessment.status}`}>
               <strong>{dhtAssessment.status === 'stale' ? 'Dữ liệu cũ'
                 : dhtAssessment.status === 'insufficient' ? 'Chưa đủ mẫu'
-                : dhtAssessment.status === 'normal' ? 'Không có biến động bất thường'
-                : 'Có biến động liên tục cần theo dõi'}</strong>
+                : dhtAssessment.status === 'checking' ? 'Đang xác minh thay đổi mới'
+                : dhtAssessment.status === 'normal' ? 'Chưa thấy biến động nhanh hoặc kéo dài'
+                : 'Phát hiện biến động nhiệt độ/độ ẩm'}</strong>
               <p>{dhtAssessment.status === 'stale'
                 ? 'Thiết bị đã ngừng gửi dữ liệu mới hơn 5 phút; tạm dừng đánh giá biến động hiện tại.'
                 : dhtAssessment.status === 'insufficient'
-                  ? `Chưa đủ dữ liệu liên tục (hiện có ${dhtAssessment.validMinutes}/${dhtAssessment.requiredMinutes} phút hợp lệ) để đánh giá biến động.`
+                  ? 'Chưa đủ mẫu DHT11 liên tục để đánh giá đầy đủ; cần tiếp tục theo dõi dữ liệu mới.'
+                  : dhtAssessment.status === 'checking'
+                    ? 'Có mẫu DHT11 vừa thay đổi mạnh; cần thêm mẫu phút tiếp theo để phân biệt biến động thật với nhiễu cảm biến.'
                   : dhtAssessment.status === 'normal'
-                    ? 'Chưa ghi nhận biến động liên tục vượt ngưỡng cảnh báo trong 6–7 phút gần nhất. Các chỉ số vẫn có thể tăng hoặc giảm nhẹ.'
-                    : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
+                    ? 'Chưa ghi nhận biến động nhanh đã xác nhận hoặc tăng/giảm kéo dài đáng chú ý.'
+                    : 'Đã ghi nhận thay đổi nhanh hoặc kéo dài ở nhiệt độ/độ ẩm. Nên kiểm tra điều kiện thực tế.'}</p>
             </div>
-            <p className="ft-muted">Ngưỡng nhận định (cần 6–7 mẫu theo phút liên tục): nhiệt độ thay đổi ít nhất {fmt(CFG.temperatureChangeAmplitude)} °C và tốc độ ít nhất {fmt(CFG.temperatureRapidSlope)} °C/phút; độ ẩm thay đổi ít nhất {fmt(CFG.humidityChangeAmplitude)} điểm %RH và tốc độ ít nhất {fmt(CFG.humidityRapidSlope)} điểm %RH/phút. Hai điều kiện của cùng chỉ số phải đồng thời đạt, cùng chiều tăng/giảm. Hiện có {dhtAssessment.validMinutes}/{dhtAssessment.requiredMinutes} mẫu phút liên tiếp tối thiểu; các ngưỡng này không phải giới hạn an toàn.</p>
+            <div className="ft-trend-insights" aria-label="Nhận định riêng cho nhiệt độ và độ ẩm">
+              <p>{describeDhtTrend('temperature', temperatureTrend, dhtAssessment)}</p>
+              <p>{describeDhtTrend('humidity', humidityTrend, dhtAssessment)}</p>
+            </div>
             {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
           </section>
           <section className="panel ft-chart-panel ft-wide-panel">
@@ -215,7 +227,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastSelection)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
           </label><label>Khoảng dự báo
             <select value={horizon} onChange={(e: ChangeEvent<HTMLSelectElement>) => setHorizon(Number(e.target.value) as 15 | 30)}><option value={15}>15 phút</option><option value={30}>30 phút</option></select>
-          </label><div className="ft-controls-caption">Mô hình học từ dữ liệu trung bình theo phút, sau đó neo dự báo vào mẫu DHT11 hợp lệ mới nhất. Random Forest/Holt-Winters chỉ dự báo khi đủ dữ liệu. Tự động chỉ chọn mô hình mới nếu MAE đa mốc tốt hơn mô hình cơ sở.</div></section>
+          </label></section>
           {forecast.temperature.status !== 'eligible' && forecast.humidity.status !== 'eligible'
             ? <div className="ft-info"><Info size={16}/> {forecast.temperature.reason ?? 'Chưa đủ dữ liệu mới để dự báo tương lai.'} Không sử dụng dự báo hồi cứu thay thế.</div> : null}
           <div className="ft-two-cards">
@@ -227,17 +239,27 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
               return <article key={metric} className="ft-metric"><div className="ft-metric-heading"><span>{metric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'} dự kiến</span><span className="ft-forecast-tag">Sau {horizon} phút</span></div>
                 <div className="ft-big-number">{fmt(last?.value)} <small>{unit}</small></div>
                 <p className="ft-model-caption"><strong>{forecastItem.status === 'eligible' ? 'Đang dùng' : 'Mô hình đã chọn'}: {MODEL_LABELS[chosen.model]}</strong></p>
-                <p className="ft-model-caption">{chosen.explanation}</p>
                 {forecastItem.status === 'eligible' && last
                   ? <div className="ft-metric-bottom"><span>Thay đổi dự kiến: {forecastItem.current !== null ? `${last.value - forecastItem.current >= 0 ? '+' : ''}${fmt(last.value - forecastItem.current)} ${unit}` : '—'}</span><span>Mốc đo đầu: {fmtTime(forecastItem.lastSampleAt)}</span></div>
                   : <p className="ft-warning">{forecastItem.reason ?? 'Chưa đủ dữ liệu.'}</p>}
               </article>;
             })}
           </div>
+          <div className="ft-chart-view-control">
+            <label>Góc nhìn biểu đồ
+              <select value={chartView} onChange={(event: ChangeEvent<HTMLSelectElement>) => setChartView(event.target.value as 'future' | 'context')}>
+                <option value="future">Chỉ dự báo tương lai</option>
+                <option value="context">30 phút lịch sử + dự báo</option>
+              </select>
+            </label>
+            <span className="ft-muted">{chartView === 'future'
+              ? 'Từ mẫu hiện tại đến +15/+30 phút; đường tương lai chưa phải số đo.'
+              : 'Số đo 30 phút gần đây nối đến mốc hiện tại, sau đó là dự báo; đoạn thiếu mẫu để trống.'}</span>
+          </div>
           <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo nhiệt độ</h2><span className="ft-muted">{forecastDeltaText(forecast.temperature, '°C', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
-            <PredictionChart points={points} metric="temperature" result={forecast} /></section>
+            <PredictionChart points={points} metric="temperature" result={forecast} viewMode={chartView} /></section>
           <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo độ ẩm</h2><span className="ft-muted">{forecastDeltaText(forecast.humidity, '%RH', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
-            <PredictionChart points={points} metric="humidity" result={forecast} /></section>
+            <PredictionChart points={points} metric="humidity" result={forecast} viewMode={chartView} /></section>
           <section className="panel ft-validation-toggle">
             <button type="button" onClick={() => setShowValidation((open) => !open)}>
               {showValidation ? 'Ẩn kiểm chứng MAE' : 'Xem kiểm chứng MAE đa mốc'}
@@ -246,7 +268,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
           </section>
           {showValidation ? <ForecastValidationPanel history={points} horizon={horizon} advancedScores={advancedScores} model={{
             temperature: selection.temperature.model, humidity: selection.humidity.model,
-          }}/> : null}
+          }} forecast={forecast} /> : null}
           <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>
             {advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}
             <p className="ft-muted">Đây là ước tính thống kê, không phải số đo tương lai hay cảnh báo nguy hiểm đã xác nhận.</p>

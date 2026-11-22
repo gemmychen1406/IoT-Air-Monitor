@@ -6,6 +6,7 @@ import { forecastMeasure } from './forecasting.js';
 import { series, START, mins } from './testHelpers.js';
 import type { Measure } from './types.js';
 import type { ValidationRow } from './validation.js';
+import type { CurveScore, ScoredOrigin } from './curveValidation.js';
 
 function rows(metric: Measure, maes: [number, number, number], pairs = 48, horizon = 15): ValidationRow[] {
   return (['naive', 'linear', 'holt'] as const).map((model, i) => ({
@@ -186,5 +187,36 @@ describe('recent completed MAE comparisons at the requested horizon', () => {
     });
     expect(recent[0]?.pairs).toBeGreaterThanOrEqual(6);
     expect(recent[0]?.horizon).toBe(30);
+  });
+});
+
+function syntheticScore(model: 'random_forest' | 'holt_winters', origins: number[], error: number): CurveScore {
+  const scoredOrigins: ScoredOrigin[] = origins.map((originAt) => ({ originAt, mae: error, baselineErrors: [0.7, 0.6, 0.8] }));
+  return {
+    model, metric: 'temperature', horizon: 15, pairs: origins.length, mae: error,
+    comparisonMae: 0.6, comparisonModel: 'linear', steps: 3,
+    eligibleOrigins: origins.length, evaluatedOrigins: origins.length, pendingOrigins: 0, scoredOrigins,
+  };
+}
+describe('fair advanced auto-selection', () => {
+  it('selects the advanced winner on common origins, not incomparable all-history MAE', () => {
+    const points = series(Array(7).fill(25));
+    const shared = Array.from({ length: 22 }, (_, i) => i * 60_000);
+    const choice = selectForecastModel(points, 'temperature', 15, START + mins(6), undefined, 'auto', {
+      random_forest: syntheticScore('random_forest', shared, 0.3),
+      holt_winters: syntheticScore('holt_winters', shared, 0.15),
+    });
+    expect(choice.model).toBe('holt_winters');
+    expect(choice.pairs).toBe(22);
+    expect(choice.explanation).toContain('mốc chung');
+  });
+  it('does not rank two advanced models directly when neither shares origins', () => {
+    const points = series(Array(7).fill(25));
+    const choice = selectForecastModel(points, 'temperature', 15, START + mins(6), undefined, 'auto', {
+      random_forest: syntheticScore('random_forest', Array.from({ length: 22 }, (_, i) => i), 0.1),
+      holt_winters: syntheticScore('holt_winters', Array.from({ length: 22 }, (_, i) => i + 100), 0.2),
+    });
+    expect(choice.model).toBe('naive');
+    expect(choice.basis).toBe('fallback');
   });
 });

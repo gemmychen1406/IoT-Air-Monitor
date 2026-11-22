@@ -47,11 +47,12 @@ export function CombinedTrendChart({ points, showAverage }: { points: readonly M
 }
 
 /** Actual and forecast are separate series; in replay mode they deliberately overlap for evaluation. */
-export function PredictionChart({ points, metric, result, replay = false }: {
+export function PredictionChart({ points, metric, result, replay = false, viewMode = 'future' }: {
   points: readonly MinuteReading[];
   metric: Measure;
   result: ForecastResult;
   replay?: boolean;
+  viewMode?: 'future' | 'context';
 }) {
   const prediction = result[metric];
   if (prediction.status !== 'eligible' || !prediction.points.length)
@@ -59,20 +60,21 @@ export function PredictionChart({ points, metric, result, replay = false }: {
   // The first point is the forecast origin (the most recent valid measurement),
   // NOT 35 minutes of historical data. All remaining X-axis positions are future
   // +5, +10, +15 / +30 minutes. Replay compares against actual later samples.
-  const timeline = forecastTimeline(points, metric, prediction, replay);
+  const timeline = forecastTimeline(points, metric, prediction, replay, viewMode);
   if (!timeline) return <EmptyChart description="Chưa có mốc thời gian dự báo hợp lệ." />;
-  const { origin, forecastEnd, ticks, data } = timeline;
+  const { origin, visibleStart, forecastEnd, ticks, data } = timeline;
   const domain = predictionYAxisDomain(data, metric);
   return (
     <div className="ft-chart ft-chart-prediction" role="img" aria-label={replay ? 'So sánh dự báo hồi cứu với phép đo đã ghi nhận' : 'So sánh số đo và dự báo tương lai'}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 15, right: 7, bottom: 10, left: -10 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="timestamp" type="number" domain={[origin, forecastEnd]} ticks={ticks} interval="preserveStartEnd" allowDataOverflow scale="time" tickFormatter={asTime} stroke={axisColor} tick={{ fontSize: 11 }} minTickGap={24} />
+          <XAxis dataKey="timestamp" type="number" domain={[visibleStart, forecastEnd]} ticks={ticks} interval="preserveStartEnd" allowDataOverflow scale="time" tickFormatter={(time: number) => time > origin ? `+${Math.round((time - origin) / CFG.minuteMs)}p` : asTime(time)} stroke={axisColor} tick={{ fontSize: 11 }} minTickGap={24} />
           <YAxis domain={domain} allowDataOverflow width={48} stroke={axisColor} tick={{ fontSize: 11 }} />
           <Tooltip labelFormatter={tooltipLabel} formatter={(value: unknown, name: unknown): [string, string] => [typeof value === 'number' ? `${value.toFixed(2)} ${units[metric]}` : '—', String(name)]} contentStyle={tooltipStyle} />
           <Legend />
-          <Line dataKey="actual" type="linear" name={replay ? `${names[metric]} đã đo` : `${names[metric]} hiện tại`} stroke={colors[metric]} strokeWidth={2.6} dot={replay ? false : { r: 4 }} connectNulls={false} isAnimationActive={false} />
+          {!replay && viewMode === 'context' ? <ReferenceLine x={origin} stroke={axisColor} strokeDasharray="4 3" label={{ value: 'Hiện tại', position: 'top', fill: axisColor, fontSize: 11 }} /> : null}
+          <Line dataKey="actual" type="linear" name={replay || viewMode === 'context' ? `${names[metric]} đã đo` : `${names[metric]} hiện tại`} stroke={colors[metric]} strokeWidth={2.6} dot={replay ? false : { r: 4 }} connectNulls={false} isAnimationActive={false} />
           <Line dataKey="predicted" type="linear" name={replay ? 'Dự báo hồi cứu' : 'Dự báo tương lai'} stroke={replay ? '#a78bfa' : '#34d399'} strokeWidth={2.6} strokeDasharray="7 4" dot={false} connectNulls={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>

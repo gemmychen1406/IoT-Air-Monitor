@@ -1,10 +1,13 @@
 // [FORECAST - FILE MOI] Giao dien rieng cua module Phan tich xu huong & Du bao.
 import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { FORECAST_CONFIG as CFG } from './config.js';
+import { MODEL_LABELS } from './modelSelection.js';
+import { combineValidationAndFuture } from './validationChart.js';
+import type { ForecastResult } from './types.js';
 import { walkForward, validationTrace } from './validation.js';
-import type { CurveScore } from './curveValidation.js';
+import { commonOriginMaes, type CurveScore } from './curveValidation.js';
 import type { AdvancedScoreTable } from './useAdvancedCurveScores.js';
 import type { ForecastModel, Measure, MinuteReading } from './types.js';
 
@@ -15,80 +18,78 @@ const meta = {
 const metrics: readonly Measure[] = ['temperature', 'humidity'];
 const models: ForecastModel[] = ['naive', 'linear', 'holt'];
 const extraModels: ForecastModel[] = ['random_forest', 'holt_winters'];
-const modelLabel: Record<ForecastModel, string> = { naive: 'Giữ giá trị cuối', linear: 'Hồi quy tuyến tính', holt: 'Holt', random_forest: 'Random Forest', holt_winters: 'Holt-Winters' };
-const formatMAE = (mae: number | null, count: number, unit: string, minimum = CFG.validationMinimumPairs) =>
+const modelLabel: Record<ForecastModel, string> = MODEL_LABELS;
+const formatMAE = (mae: number | null, count: number, unit: string, minimum: number = CFG.validationMinimumPairs) =>
   mae === null || count < minimum ? `Chưa đủ (${count}/${minimum})` : `${mae.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${unit} · ${count} lần`;
 
-export function ForecastValidationPanel({ history, horizon, model, advancedScores }: {
+export function ForecastValidationPanel({ history, horizon, model, advancedScores, forecast }: {
   history: readonly MinuteReading[];
   horizon: 15 | 30;
   model: Record<Measure, ForecastModel>;
   advancedScores: AdvancedScoreTable | null;
+  forecast: ForecastResult;
 }) {
   const [metric, setMetric] = useState<Measure>('temperature');
   const all = useMemo(() => ({
     temperature: walkForward(history, 'temperature', horizon, undefined, { multiStep: true }),
     humidity: walkForward(history, 'humidity', horizon, undefined, { multiStep: true }),
   }), [history, horizon]);
-  const advanced = advancedScores; // shared rolling, cached and progressively completed outside render
+  const advanced = advancedScores; // cached and progressively completed outside render
+  const common = useMemo(() => ({
+    temperature: commonOriginMaes(advanced?.temperature.random_forest, advanced?.temperature.holt_winters),
+    humidity: commonOriginMaes(advanced?.humidity.random_forest, advanced?.humidity.holt_winters),
+  }), [advanced]);
   const selectedModel = model[metric];
   const trace = useMemo(
     () => validationTrace(history, metric, selectedModel, horizon),
     [history, metric, selectedModel, horizon],
   );
-  const enough = all[metric].find((row) => row.model === selectedModel)?.pairs ??
-    (selectedModel === 'random_forest' || selectedModel === 'holt_winters' ? advanced?.[metric][selectedModel].pairs ?? 0 : 0);
-  const best = metrics.flatMap((key) => {
-    const ranked = all[key].filter((row) => row.mae !== null && row.pairs >= CFG.validationMinimumPairs)
-      .sort((a, b) => a.mae! - b.mae!);
-    return ranked[0] ? [{ metric: key, model: ranked[0].model }] : [];
-  });
+  const combined = useMemo(() => combineValidationAndFuture(history, trace, metric, forecast[metric]),
+    [history, trace, metric, forecast]);
 
   return <div className="ft-validation">
-    <section className="panel ft-instructions">
-      <h2>Kiểm chứng dự báo có sát thực tế không?</h2>
-      <p>Hệ thống chọn các thời điểm trong quá khứ, chỉ dùng số đo <strong>trước thời điểm đó</strong> để dự báo {horizon} phút, rồi so với giá trị thực tế đo được sau đó.</p>
-      <p><strong>MAE đa mốc</strong> là trung bình sai số ở +5, +10... đến +{horizon} phút. Mỗi lần đối chiếu chỉ sử dụng dữ liệu đã có trước thời điểm dự báo. Mô hình cơ sở cần ít nhất {CFG.validationMinimumPairs} lần; mô hình nâng cao cần ít nhất 8 lần và được xử lý theo từng đợt để tránh chậm giao diện. Số lần chỉ tính trong lịch sử đang tải, không lưu dài hạn.</p>
-    </section>
     <section className="panel ft-validation-table">
-      <div className="ft-section-bar"><h2>So sánh mô hình cơ sở (MAE đa mốc)</h2><span className="ft-muted">Dự báo +5 đến +{horizon} phút · cùng mốc kiểm thử cho ba mô hình cơ sở</span></div>
+      <div className="ft-section-bar"><h2>MAE</h2></div>
       <div className="ft-table-scroll"><table><thead><tr><th>Mô hình</th>{metrics.map((key) => <th key={key}>{meta[key].name}<small>{meta[key].unit}</small></th>)}</tr></thead>
         <tbody>{models.map((name) => <tr key={name} className={name === model.temperature || name === model.humidity ? 'ft-table-selected' : ''}>
           <th>{modelLabel[name]}</th>{metrics.map((key) => {
             const item = all[key].find((row) => row.model === name)!;
-            return <td key={key}>{formatMAE(item.mae, item.pairs, meta[key].unit)}</td>;
+            const matched = common[key]?.pairs && common[key]!.pairs >= 8 ? common[key] : null;
+            return <td key={key}>{matched
+              ? formatMAE(matched.mae[name], matched.pairs, meta[key].unit, 8)
+              : formatMAE(item.mae, item.pairs, meta[key].unit)}</td>;
           })}
         </tr>)}{extraModels.map((name) => <tr key={name} className={name === model.temperature || name === model.humidity ? 'ft-table-selected' : ''}>
           <th>{modelLabel[name]}</th>{metrics.map((key) => {
             const row: CurveScore | undefined = advanced?.[key][name as 'random_forest' | 'holt_winters'];
-            return <td key={key}>{row ? <>{formatMAE(row.mae, row.pairs, meta[key].unit, 8)}
-              {row.pendingOrigins > 0 ? <small>Đang tính: {row.evaluatedOrigins}/{row.eligibleOrigins} mốc đã xét</small> : null}
-              {row.comparisonMae !== null && row.comparisonModel ? <small>Đối chứng cùng {row.pairs} mốc ({modelLabel[row.comparisonModel]}): {row.comparisonMae.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {meta[key].unit}</small> : null}
-            </> : 'Đang chuẩn bị kiểm chứng…'}</td>;
+            const matched = common[key]?.pairs && common[key]!.pairs >= 8 ? common[key] : null;
+            return <td key={key}>{matched
+              ? formatMAE(matched.mae[name], matched.pairs, meta[key].unit, 8)
+              : row ? formatMAE(row.mae, row.pairs, meta[key].unit, 8) : 'Đang chuẩn bị kiểm chứng…'}</td>;
           })}
         </tr>)}</tbody></table></div>
-      <p className="ft-muted">Random Forest/Holt-Winters được đối chiếu với mô hình cơ sở tốt nhất trên đúng các mốc mà từng mô hình dự báo hợp lệ. Số lần tăng theo dữ liệu đã đo, không còn giới hạn 20 mốc. Nếu các tập mốc khác nhau, không kết luận mô hình có MAE thấp hơn là tốt hơn trên cùng dữ liệu.</p>
-      {best.length ? <p className="ft-muted">Sai số thấp nhất trong ba mô hình cơ sở (khi đủ dữ liệu): {best.map((item) => `${meta[item.metric].name}: ${modelLabel[item.model]}`).join(' · ')}. Không có thuật toán nào luôn tốt nhất trên mọi dữ liệu.</p> : <p className="ft-muted">Chưa có đủ cặp dự báo–đo thực tế để kết luận mô hình nào chính xác hơn.</p>}
     </section>
     <section className="panel ft-chart-panel ft-wide-panel">
-      <div className="ft-section-bar"><div><h2>Biểu đồ đối chiếu dự báo và số đo</h2><p className="ft-muted">Màu xanh: thực tế · màu tím: dự báo từ thời điểm trước đó</p></div>
+      <div className="ft-section-bar"><div><h2>Lịch sử & dự báo tiếp theo</h2></div>
         <label>Chỉ số <select value={metric} onChange={(event: ChangeEvent<HTMLSelectElement>) => setMetric(event.target.value as Measure)}>
           {metrics.map((key) => <option key={key} value={key}>{meta[key].name}</option>)}
         </select></label>
       </div>
-      {trace.length ? <div className="ft-chart ft-chart-large" role="img" aria-label="Biểu đồ so sánh dự báo lịch sử và giá trị thực tế">
-        <ResponsiveContainer width="100%" height="100%"><LineChart data={trace} margin={{ top: 14, right: 10, bottom: 10, left: 0 }}>
+      {combined.data.length ? <div className="ft-chart ft-chart-large" role="img" aria-label="Số đo lịch sử, dự báo hồi cứu và dự báo tương lai">
+        <ResponsiveContainer width="100%" height="100%"><LineChart data={combined.data} margin={{ top: 14, right: 10, bottom: 10, left: 0 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 5" vertical={false}/>
-          <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value: number) => new Date(value).toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})} tick={{fontSize:11}} minTickGap={50}/>
+          <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value: number) => combined.origin !== null && value > combined.origin ? `+${Math.round((value - combined.origin) / CFG.minuteMs)}p` : new Date(value).toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})} tick={{fontSize:11}} minTickGap={50}/>
           <YAxis domain={[0, metric === 'humidity' ? 100 : 'auto']} tick={{fontSize:11}} width={50}/>
           <Tooltip labelFormatter={(value: unknown) => typeof value === 'number' ? new Date(value).toLocaleString('vi-VN') : ''}
             formatter={(value: unknown) => typeof value === 'number' ? `${value.toFixed(2)} ${meta[metric].unit}` : '—'}
             contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 9 }}/><Legend/>
-          <Line dataKey="actual" name="Số đo thực tế" stroke="#38bdf8" strokeWidth={2.2} dot={false} isAnimationActive={false}/>
-          <Line dataKey="prediction" name="Dự báo lịch sử" stroke="#a78bfa" strokeDasharray="6 4" strokeWidth={2.2} dot={false} isAnimationActive={false}/>
+          {combined.origin !== null ? <ReferenceLine x={combined.origin} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: 'Hiện tại', fill: '#94a3b8', fontSize: 11, position: 'top' }}/> : null}
+          <Line dataKey="actual" name="Số đo thực tế" stroke="#38bdf8" strokeWidth={2.2} dot={false} connectNulls={false} isAnimationActive={false}/>
+          <Line dataKey="prediction" name="Dự báo lịch sử" stroke="#a78bfa" strokeDasharray="6 4" strokeWidth={2.2} dot={false} connectNulls={false} isAnimationActive={false}/>
+          <Line dataKey="future" name="Dự báo tương lai" stroke="#34d399" strokeDasharray="7 4" strokeWidth={2.4} dot={false} connectNulls={false} isAnimationActive={false}/>
         </LineChart></ResponsiveContainer>
       </div> : <div className="ft-empty">Chưa có đủ dữ liệu để vẽ biểu đồ đối chiếu này.</div>}
-      <p className="ft-muted">{meta[metric].name} · {modelLabel[selectedModel]} · {enough >= (selectedModel === 'random_forest' || selectedModel === 'holt_winters' ? 8 : CFG.validationMinimumPairs) ? `${enough} lần đối chiếu hợp lệ` : `Chỉ có ${enough} lần đối chiếu, chưa đủ để kết luận`}.</p>
+      {combined.origin === null ? <p className="ft-muted">Chưa có dự báo tương lai hợp lệ; biểu đồ chỉ hiển thị dữ liệu lịch sử.</p> : null}
     </section>
   </div>;
 }

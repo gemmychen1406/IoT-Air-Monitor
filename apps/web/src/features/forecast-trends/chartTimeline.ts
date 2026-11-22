@@ -21,6 +21,7 @@ export interface ForecastChartPoint {
 
 export interface ForecastTimeline {
   origin: number;
+  visibleStart: number;
   forecastEnd: number;
   ticks: number[];
   data: ForecastChartPoint[];
@@ -35,7 +36,7 @@ export function forecastTimeline(
   history: readonly MinuteReading[],
   metric: Measure,
   forecast: MeasureForecast,
-  replay: boolean,
+  replay: boolean, viewMode: 'future' | 'context' = 'future',
 ): ForecastTimeline | null {
   const origin = forecast.lastSampleAt;
   const lastPrediction = forecast.points.at(-1);
@@ -47,6 +48,33 @@ export function forecastTimeline(
   const entries = new Map<number, ForecastChartPoint>();
   // First visible point = the latest known measurement (or replay origin).
   entries.set(origin, { timestamp: origin, actual: forecast.current, predicted: forecast.current });
+
+  if (!replay && viewMode === 'context') {
+    // Real observations only. A null minute explicitly breaks lines across
+    // missing buckets rather than visually interpolating unmeasured values.
+    const start = origin - 30 * CFG.minuteMs;
+    const historical = history
+      .filter((point) => Number.isFinite(point.timestamp) && point.timestamp >= start && point.timestamp < origin)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    let previous: number | null = null;
+    for (const observation of historical) {
+      if (previous !== null && observation.timestamp - previous > CFG.minuteMs) {
+        const missingAt = previous + CFG.minuteMs;
+        entries.set(missingAt, { timestamp: missingAt, actual: null, predicted: null });
+      }
+      const measured = observation[metric];
+      entries.set(observation.timestamp, {
+        timestamp: observation.timestamp,
+        actual: typeof measured === 'number' && Number.isFinite(measured) ? measured : null,
+        predicted: null,
+      });
+      previous = observation.timestamp;
+    }
+    if (previous !== null && origin - previous > 2 * CFG.minuteMs) {
+      const missingAt = previous + CFG.minuteMs;
+      entries.set(missingAt, { timestamp: missingAt, actual: null, predicted: null });
+    }
+  }
 
   if (replay) {
     for (const observation of history) {
@@ -68,7 +96,11 @@ export function forecastTimeline(
     entries.set(prediction.timestamp, row);
   }
 
-  const ticks = [origin];
+  const visibleStart = !replay && viewMode === 'context'
+    ? Math.max(origin - 30 * CFG.minuteMs, Math.min(origin, ...entries.keys())) : origin;
+  const ticks = viewMode === 'context' && !replay
+    ? [visibleStart, ...[20, 10].map((minutes) => origin - minutes * CFG.minuteMs).filter((time) => time > visibleStart), origin]
+    : [origin];
   for (let time = origin + 5 * CFG.minuteMs; time < forecastEnd; time += 5 * CFG.minuteMs) {
     ticks.push(time);
   }
@@ -76,6 +108,7 @@ export function forecastTimeline(
 
   return {
     origin,
+    visibleStart,
     forecastEnd,
     ticks,
     data: [...entries.values()].sort((a, b) => a.timestamp - b.timestamp),

@@ -43,3 +43,16 @@ describe('walk-forward backtesting', () => {
     expect(result.every((row) => Number.isFinite(row.mae ?? 0))).toBe(true);
   });
 });
+
+
+describe('walk-forward input integrity', () => {
+  it('ignores invalid measurements and duplicate minute timestamps', () => {
+    const original = series(Array.from({ length: 65 }, (_, i) => 20 + 0.03 * i));
+    const reference = walkForward(original, 'temperature', 15, undefined, { multiStep: true });
+    const dirty = [...original, original[10]!, { ...original[20]!, temperature: Number.NaN },
+      { ...original[30]!, temperature: 500 }];
+    const actual = walkForward(dirty, 'temperature', 15, undefined, { multiStep: true });
+    expect(actual.map((row) => row.pairs)).toEqual(reference.map((row) => row.pairs));
+    expect(actual.map((row) => row.mae)).toEqual(reference.map((row) => row.mae));
+  });
+});

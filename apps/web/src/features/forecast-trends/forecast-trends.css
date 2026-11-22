@@ -30,6 +30,8 @@
 .ft-trend.ft-increasing { color: #f0af65; }
 .ft-trend.ft-decreasing { color: #76b8e4; }
 .ft-trend.ft-stable { color: var(--accent); }
+.ft-trend.ft-watch { color: #f59e0b; border-color: #f59e0b; }
+.ft-trend.ft-checking { color: #fbbf24; border-color: #a16207; }
 .ft-big-number { font-size: clamp(28px,3vw,41px); font-weight: 700; letter-spacing: -1px; margin: 13px 0 7px; font-variant-numeric: tabular-nums; }
 .ft-big-number small { font-size: 17px; font-weight: 500; color: var(--muted); }
 .ft-live-label { color: var(--muted); font-size: 12px; margin: -2px 0 12px; }
@@ -286,6 +288,7 @@
 .ft-dht-assessment-insufficient { border-left: 3px solid #94a3b8; }
 .ft-dht-assessment-normal { border-left: 3px solid var(--accent); }
 .ft-dht-assessment-watch { border-left: 3px solid #f59e0b; }
+.ft-dht-assessment-checking { border-left: 3px solid #fbbf24; }
 
 /* Explain the independently selected model below each prediction card. */
 .ft-model-caption { margin: 0.3rem 0 0; color: var(--text-muted, var(--muted)); font-size: 0.85rem; line-height: 1.45; }
@@ -308,3 +311,14 @@
 .ft-spread-room-station .ft-micro-prediction { font-size: 18px; }
 @media (max-width: 1120px) { .ft-spread-room-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 760px) { .ft-spread-room-grid, .ft-spread-door-controls { grid-template-columns: 1fr; } }
+
+/* Forecast-only concise per-metric guidance and chart mode selector. */
+.ft-trend-insights { display: grid; gap: 6px; margin: 12px 0; }
+.ft-trend-insights p { margin: 0; line-height: 1.5; font-size: 13px; }
+.ft-chart-view-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 6px 6px 14px; }
+.ft-chart-view-control label { display: grid; gap: 5px; min-width: 215px; font-size: 13px; }
+.ft-chart-view-control .ft-muted { flex: 1 1 260px; margin: 0; font-size: 12px; }
+
+.ft-threshold-details { font-size: 12px; margin: 7px 0 13px; }
+.ft-threshold-details summary { cursor: pointer; }
+.ft-threshold-details p { margin-top: 6px; line-height: 1.55; }

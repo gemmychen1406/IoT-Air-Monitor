@@ -4,6 +4,12 @@ import { advancedForecast, type AdvancedForecastModel } from './advancedForecast
 import { predictAt } from './forecasting.js';
 import type { Measure, MinuteReading } from './types.js';
 
+export interface ScoredOrigin {
+  originAt: number;
+  mae: number;
+  baselineErrors: readonly [number, number, number];
+}
+
 export interface CurveScore {
   model: AdvancedForecastModel;
   horizon: 15 | 30;
@@ -16,6 +22,7 @@ export interface CurveScore {
   eligibleOrigins: number; // origins with measured targets; model may still be ineligible
   evaluatedOrigins: number; // eligible origins already checked (including rejected ones)
   pendingOrigins: number; // not yet evaluated, never treated as failed predictions
+  scoredOrigins: readonly ScoredOrigin[]; // real measured targets, per origin
 }
 
 type OriginScore = { advanced: number; basic: readonly [number, number, number] } | null;
@@ -61,11 +68,13 @@ export function compareAdvancedCurves(
 ): CurveScore {
   const empty: CurveScore = { model, metric, horizon, pairs: 0, mae: null,
     comparisonMae: null, comparisonModel: null, steps: horizon / 5,
-    eligibleOrigins: 0, evaluatedOrigins: 0, pendingOrigins: 0 };
+    eligibleOrigins: 0, evaluatedOrigins: 0, pendingOrigins: 0, scoredOrigins: [] };
   // All time indexes represent observed minute buckets, not interpolated data.
-  const valid = points.filter((p) => Number.isFinite(p.timestamp) &&
-    p[metric] !== null && Number.isFinite(p[metric]))
-    .sort((a, b) => a.timestamp - b.timestamp);
+  const valid = points.filter((p) => {
+    const value = p[metric];
+    return Number.isFinite(p.timestamp) && typeof value === 'number' && Number.isFinite(value) &&
+      (metric === 'temperature' ? value >= -40 && value <= 125 : value >= 0 && value <= 100);
+  }).sort((a, b) => a.timestamp - b.timestamp);
   // Duplicated timestamps must not become duplicate forecast origins.
   const unique: MinuteReading[] = [];
   for (const reading of valid) {
@@ -87,6 +96,7 @@ export function compareAdvancedCurves(
 
   let eligibleOrigins = 0, evaluatedOrigins = 0, sumAdvanced = 0, pairs = 0;
   const sumBasic = [0, 0, 0];
+  const scoredOrigins: ScoredOrigin[] = [];
   const budget = Math.max(0, maxNewOrigins);
   let newEvaluations = 0;
   const maxCount = Math.max(0, maxOrigins);
@@ -129,15 +139,53 @@ export function compareAdvancedCurves(
     }
     evaluatedOrigins++;
     if (entry) {
+      scoredOrigins.push({ originAt: origin.timestamp, mae: entry.advanced, baselineErrors: entry.basic });
       pairs++;
       sumAdvanced += entry.advanced;
       for (let j = 0; j < baselines.length; j++) sumBasic[j]! += entry.basic[j]!;
     }
   }
   const pendingOrigins = eligibleOrigins - evaluatedOrigins;
-  if (!pairs) return { ...empty, eligibleOrigins, evaluatedOrigins, pendingOrigins };
+  if (!pairs) return { ...empty, eligibleOrigins, evaluatedOrigins, pendingOrigins, scoredOrigins };
   const best = baselines.map((name, index) => ({ name, mae: sumBasic[index]! / pairs }))
     .sort((a, b) => a.mae - b.mae)[0]!;
   return { ...empty, pairs, mae: sumAdvanced / pairs, comparisonMae: best.mae,
-    comparisonModel: best.name, eligibleOrigins, evaluatedOrigins, pendingOrigins };
+    comparisonModel: best.name, eligibleOrigins, evaluatedOrigins, pendingOrigins, scoredOrigins };
+}
+
+/** Five-model MAE on EXACTLY the same observed origin/target windows.
+ * A model without training/seasonal eligibility removes that origin from the
+ * common intersection; it is never counted as a failed or fabricated forecast.
+ */
+export interface CommonModelMaes {
+  pairs: number;
+  mae: Record<'naive' | 'linear' | 'holt' | AdvancedForecastModel, number>;
+}
+export function commonOriginMaes(
+  forest: CurveScore | null | undefined, winter: CurveScore | null | undefined,
+): CommonModelMaes | null {
+  if (!forest || !winter || forest.pendingOrigins > 0 || winter.pendingOrigins > 0 ||
+      forest.metric !== winter.metric || forest.horizon !== winter.horizon ||
+      forest.model !== 'random_forest' || winter.model !== 'holt_winters') return null;
+  const winterByOrigin = new Map(winter.scoredOrigins.map((value) => [value.originAt, value]));
+  const sums = { naive: 0, linear: 0, holt: 0, random_forest: 0, holt_winters: 0 };
+  let pairs = 0;
+  for (const rf of forest.scoredOrigins) {
+    const hw = winterByOrigin.get(rf.originAt);
+    if (!hw) continue;
+    pairs++;
+    sums.random_forest += rf.mae;
+    sums.holt_winters += hw.mae;
+    sums.naive += rf.baselineErrors[0];
+    sums.linear += rf.baselineErrors[1];
+    sums.holt += rf.baselineErrors[2];
+  }
+  if (!pairs) return null;
+  return { pairs, mae: {
+    naive: sums.naive / pairs,
+    linear: sums.linear / pairs,
+    holt: sums.holt / pairs,
+    random_forest: sums.random_forest / pairs,
+    holt_winters: sums.holt_winters / pairs,
+  } };
 }

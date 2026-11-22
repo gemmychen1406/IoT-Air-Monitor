@@ -4,7 +4,7 @@ import { FORECAST_CONFIG as CFG } from './config.js';
 import { evaluateDhtMetricStatus } from './dhtAdvisory.js';
 import type { DhtAssessmentStatus } from './dhtAdvisory.js';
 import { walkForward, type ValidationRow } from './validation.js';
-import { compareAdvancedCurves, type CurveScore } from './curveValidation.js';
+import { compareAdvancedCurves, commonOriginMaes, type CurveScore } from './curveValidation.js';
 import type { ForecastModel, Measure, MinuteReading } from './types.js';
 
 export type ForecastSelection = 'auto' | ForecastModel;
@@ -22,7 +22,7 @@ export interface ModelSelectionResult {
 }
 
 export const MODEL_LABELS: Record<ForecastModel, string> = {
-  naive: 'Naive', linear: 'Hồi quy tuyến tính', holt: 'Holt',
+  naive: 'Naive', linear: 'Linear', holt: 'Holt',
   random_forest: 'Random Forest', holt_winters: 'Holt-Winters',
 };
 const SIMPLE_FIRST: readonly ForecastModel[] = ['naive', 'linear', 'holt'];
@@ -98,32 +98,56 @@ export function selectForecastModel(
     explanation: `Bạn đang chọn ${MODEL_LABELS[preference]} thủ công.`,
   };
 
-  // Reuse full-history incremental scores for reporting, but keep automatic
-  // selection sensitive to RECENT completed predictions as before. Scoring
-  // recent comparisons reads the SAME per-origin cache: no extra retraining.
-  const advanced = (['random_forest', 'holt_winters'] as const).flatMap((name) => {
-    const full = advancedScores === undefined
-      ? compareAdvancedCurves(points, metric, horizon, name)
-      : advancedScores?.[name];
-    if (!full || full.pendingOrigins > 0) return [];
-    const recent = compareAdvancedCurves(points, metric, horizon, name, undefined, 20, 0);
-    const useRecent = recent.pendingOrigins === 0 && recent.pairs >= 8;
-    const evaluation = useRecent ? recent : full;
-    const gain = evaluation.mae !== null && evaluation.comparisonMae !== null
-      ? evaluation.comparisonMae - evaluation.mae : 0;
-    const absoluteGain = metric === 'temperature' ? 0.05 : 0.2;
-    const significant = evaluation.pairs >= (useRecent ? 8 : 20) &&
-      gain >= absoluteGain && evaluation.comparisonMae !== null &&
-      evaluation.comparisonMae > 0 && gain / evaluation.comparisonMae >= 0.08;
-    return significant ? [{ evaluation, useRecent, gain }] : [];
-  }).sort((a, b) => b.gain - a.gain);
-  if (advanced[0]) {
-    const { evaluation, useRecent } = advanced[0];
-    return {
-      ...base, model: evaluation.model, basis: useRecent ? 'recent_mae' : 'mae',
-      pairs: evaluation.pairs, mae: evaluation.mae,
-      explanation: `Chọn ${MODEL_LABELS[evaluation.model]}: MAE đa mốc ${pretty(evaluation.mae!, metric)} trên ${evaluation.pairs} lần dự báo hồi cứu (mốc +5 đến +${horizon} phút), thấp hơn ${MODEL_LABELS[evaluation.comparisonModel!]} trên cùng tập đối chiếu.`,
-    };
+  // Advanced models share the same per-origin cache. Compare advanced candidates
+  // only on the INTERSECTION of origins both can forecast (same real targets).
+  // Each advanced model is compared against the best baseline on those same origins.
+  const advancedNames = ['random_forest', 'holt_winters'] as const;
+  const full = Object.fromEntries(advancedNames.map((name) => [name,
+    advancedScores === undefined ? compareAdvancedCurves(points, metric, horizon, name) : advancedScores?.[name],
+  ])) as Record<(typeof advancedNames)[number], CurveScore | undefined>;
+  const allReady = advancedNames.every((name) => full[name] && full[name]!.pendingOrigins === 0);
+  if (allReady) {
+    const recent = Object.fromEntries(advancedNames.map((name) => [name,
+      compareAdvancedCurves(points, metric, horizon, name, undefined, 20, 0),
+    ])) as Record<(typeof advancedNames)[number], CurveScore>;
+    const recentCommon = commonOriginMaes(recent.random_forest, recent.holt_winters);
+    const fullCommon = commonOriginMaes(full.random_forest, full.holt_winters);
+    const shared = recentCommon && recentCommon.pairs >= 8
+      ? { result: recentCommon, basis: 'recent_mae' as const }
+      : fullCommon && fullCommon.pairs >= 20
+        ? { result: fullCommon, basis: 'mae' as const } : null;
+    if (shared) {
+      const { result, basis } = shared;
+      const bestBase = (['naive', 'linear', 'holt'] as const)
+        .reduce((best, name) => result.mae[name] < result.mae[best] ? name : best, 'naive' as 'naive' | 'linear' | 'holt');
+      const winner = advancedNames.reduce((best, name) =>
+        result.mae[name] < result.mae[best] ? name : best);
+      const gain = result.mae[bestBase] - result.mae[winner];
+      const absoluteGain = minGain[metric];
+      if (gain >= absoluteGain && result.mae[bestBase] > 0 && gain / result.mae[bestBase] >= 0.08) {
+        return { ...base, model: winner, basis, pairs: result.pairs, mae: result.mae[winner],
+          explanation: `Chọn ${MODEL_LABELS[winner]}: MAE đa mốc ${pretty(result.mae[winner], metric)} trên ${result.pairs} mốc chung (+5 đến +${horizon} phút), tốt hơn ${MODEL_LABELS[bestBase]} và mô hình nâng cao còn lại trên đúng tập đó.`,
+        };
+      }
+    } else {
+      // No reliable cross-model intersection yet. A single eligible advanced
+      // candidate can still beat baselines on ITS OWN matched origins; two
+      // ineligible-to-compare advanced models must never be ranked by raw MAE.
+      const qualified = advancedNames.flatMap((name) => {
+        const value = full[name]!;
+        if (value.pairs < 20 || value.mae === null || value.comparisonMae === null ||
+            value.comparisonModel === null || value.comparisonMae <= 0) return [];
+        const gain = value.comparisonMae - value.mae;
+        return gain >= minGain[metric] && gain / value.comparisonMae >= 0.08
+          ? [{ name, value }] : [];
+      });
+      if (qualified.length === 1) {
+        const { name, value } = qualified[0]!;
+        return { ...base, model: name, basis: 'mae', pairs: value.pairs, mae: value.mae,
+          explanation: `Chọn ${MODEL_LABELS[name]}: MAE ${pretty(value.mae!, metric)} trên ${value.pairs} mốc hợp lệ, tốt hơn ${MODEL_LABELS[value.comparisonModel!]} tại chính các mốc này; chưa đủ mốc chung để so với mô hình nâng cao còn lại.`,
+        };
+      }
+    }
   }
 
   const postProcess = metric === 'humidity' ? clampHumidity : undefined;

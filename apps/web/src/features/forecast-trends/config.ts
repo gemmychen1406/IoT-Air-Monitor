@@ -16,6 +16,11 @@ export const FORECAST_CONFIG = {
   dhtChangeMaxMinutes: 7,
   temperatureChangeAmplitude: 1.0,
   humidityChangeAmplitude: 3.5,
+  // Tentative short-window change thresholds for DHT11: 3 consecutive minute
+  // samples (2 minutes elapsed), with confirmation from the middle sample.
+  // Operational change detection only, never a certified fire/safety threshold.
+  temperatureSuddenAmplitude: 1.5,
+  humiditySuddenAmplitude: 5.0,
   staleAfterMs: 300_000,
   temperatureStableSlope: 0.03,
   humidityStableSlope: 0.15,

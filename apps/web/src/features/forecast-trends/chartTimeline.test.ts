@@ -52,3 +52,27 @@ describe('chart timelines', () => {
     expect(forecastTimeline([], 'temperature', { ...forecast(15), status: 'stale' }, false)).toBeNull();
   });
 });
+
+describe('two future-forecast chart views', () => {
+  it('can append the last 30 minutes of REAL observed history and mark gaps', () => {
+    const history = series([24, 25, 26, 27], undefined, START - mins(4));
+    const sparse = [history[0]!, history[1]!, history[3]!]; // missing minute -2
+    const context = forecastTimeline(sparse, 'temperature', forecast(15), false, 'context')!;
+    expect(context.data[0]?.timestamp).toBe(START - mins(4));
+    expect(context.data.find((point) => point.timestamp === START - mins(2))?.actual).toBeNull();
+    expect(context.data.find((point) => point.timestamp === START - mins(3))?.actual).toBe(25);
+    expect(context.data.find((point) => point.timestamp === START)?.actual).toBe(27);
+    expect(context.data.at(-1)?.timestamp).toBe(START + mins(15));
+    expect(context.data.every((point) => point.timestamp <= START || point.actual === null)).toBe(true);
+    const future = forecastTimeline(sparse, 'temperature', forecast(15), false, 'future')!;
+    expect(future.data.every((point) => point.timestamp >= START)).toBe(true);
+  });
+  it('keeps replay separate and blocks stale/insufficient prediction for both views', () => {
+    for (const view of ['future', 'context'] as const) {
+      const failed = { ...forecast(30), status: 'insufficient' as const, points: [] };
+      expect(forecastTimeline([], 'temperature', failed, false, view)).toBeNull();
+    }
+    const replay = forecastTimeline(series([23, 24], undefined, START + mins(1)), 'humidity', forecast(15), true, 'context')!;
+    expect(replay.visibleStart).toBe(START);
+  });
+});

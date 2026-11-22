@@ -29,6 +29,8 @@ export function evaluateAdvisory(
     const crosses = prediction.points.find((point) => point.value < range[0] || point.value > range[1]);
     if (crosses) details.push(`${metric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'} dự báo có thể vượt vùng tham chiếu trong ${Math.round((crosses.timestamp - prediction.lastSampleAt!) / CFG.minuteMs)} phút.`);
   }
-  if (!details.length) return { level: 'normal', title: 'Chưa phát hiện biến động đáng chú ý', details: [] };
+  if (!details.length) return { level: 'normal', title: 'Chưa phát hiện biến động liên tục vượt ngưỡng', details: [
+    'Nhiệt độ và độ ẩm chưa có dấu hiệu cần cảnh báo theo ngưỡng hiện tại; các chỉ số vẫn có thể dao động nhẹ.',
+  ] };
   return { level: 'watch', title: 'Biến động ghi nhận gần đây hoặc dự báo vượt vùng tham chiếu', details };
 }

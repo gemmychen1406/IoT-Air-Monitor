@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareAdvancedCurves, curveValidationCacheStats, resetCurveValidationCache } from './curveValidation.js';
+import { compareAdvancedCurves, curveValidationCacheStats, resetCurveValidationCache, commonOriginMaes } from './curveValidation.js';
 import { series } from './testHelpers.js';
 
 const cyclic = (length: number) => series(
@@ -92,5 +92,23 @@ describe('incremental advanced multi-step validation', () => {
     const second = compareAdvancedCurves(duplicates, 'humidity', 15, 'holt_winters');
     expect(second.eligibleOrigins).toBe(original.eligibleOrigins);
     expect(second.pairs).toBe(original.pairs);
+  });
+});
+
+describe('fair MAE comparison on shared real origins', () => {
+  it('uses strictly the origin intersection, never compares scores from unrelated samples', () => {
+    const data = cyclic(170);
+    resetCurveValidationCache();
+    const rf = compareAdvancedCurves(data, 'temperature', 15, 'random_forest');
+    const hw = compareAdvancedCurves(data, 'temperature', 15, 'holt_winters');
+    const fair = commonOriginMaes(rf, hw)!;
+    const shared = new Set(hw.scoredOrigins.map((item) => item.originAt));
+    const overlap = rf.scoredOrigins.filter((item) => shared.has(item.originAt));
+    expect(fair.pairs).toBe(overlap.length);
+    expect(fair.pairs).toBeGreaterThan(8);
+    const rfMean = overlap.reduce((sum, sample) => sum + sample.mae, 0) / overlap.length;
+    expect(fair.mae.random_forest).toBeCloseTo(rfMean, 7);
+    expect(fair.pairs <= Math.min(rf.pairs, hw.pairs)).toBe(true);
+    expect(commonOriginMaes(rf, { ...hw, metric: 'humidity' })).toBeNull();
   });
 });
