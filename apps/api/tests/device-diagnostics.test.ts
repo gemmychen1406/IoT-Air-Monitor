@@ -35,6 +35,22 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         expect(res.body.data.source_kind).toBe("simulator");
       }
     });
+    it("returns one current summary per station for a signed-in viewer", async () => {
+      await request(app).get("/api/v1/diagnostics/summary").expect(401);
+      const result = await request(app)
+        .get("/api/v1/diagnostics/summary")
+        .set(f.headers.viewer!)
+        .expect(200);
+      const rows = result.body.data.filter(
+        (r: { device_id: string }) => r.device_id === f.deviceId,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        source_kind: "simulator",
+        room: null,
+        notices: expect.any(Array),
+      });
+    });
     it("validates device IDs, dates, future bounds and thresholds", async () => {
       for (const suffix of [
         "&flat_minutes=0",

@@ -49,6 +49,29 @@ const report: DiagnosticReport = {
   reboots_observed: 0,
   notices: [],
 };
+const row = {
+  device_id: device.id,
+  name: device.name,
+  room: "Bếp",
+  source_kind: "physical",
+  last_seen_at: null,
+  recovered_at: null,
+  notices: [
+    {
+      id: "invalid-mq2",
+      level: "check",
+      title: "Cần kiểm tra MQ-2",
+      evidence: "3 mẫu báo lỗi",
+      action: "Kiểm tra cảm biến",
+    },
+  ],
+};
+const response = (data: unknown) => new Response(JSON.stringify({ data }));
+async function inspect() {
+  fireEvent.click(
+    (await screen.findAllByRole("button", { name: /Cần kiểm tra MQ-2/ }))[0]!,
+  );
+}
 function mount(devices = [device], userId = "ha") {
   return render(
     <MemoryRouter>
@@ -85,37 +108,45 @@ it("exposes a readable error and retries the request", async () => {
         status: 503,
       }),
     )
-    .mockResolvedValue(new Response(JSON.stringify({ data: report })));
+    .mockImplementation(async (url: string) =>
+      response(url.includes("/summary") ? [row] : report),
+    );
   vi.stubGlobal("fetch", fetch);
   mount();
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Kết nối tạm ngắt",
   );
   fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+  await inspect();
   expect(
-    await screen.findByText("Số đo có dùng được không?"),
+    await screen.findByRole("heading", { name: "Số đo có dùng được không?" }),
   ).toBeInTheDocument();
 });
 it("does not show normal advice or full-window totals when raw history is incomplete", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            ...report,
-            completeness: { ...report.completeness, truncated: true },
-          },
-        }),
+    vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        response(
+          url.includes("/summary")
+            ? [row]
+            : {
+                ...report,
+                completeness: { ...report.completeness, truncated: true },
+              },
+        ),
       ),
-    ),
   );
   mount();
+  await inspect();
   expect(
     await screen.findByText("Chỉ phân tích được một phần lịch sử."),
   ).toBeInTheDocument();
   expect(screen.queryByText(/Chưa có việc cần nhắc/)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /^Kết nối$/ }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Trạm có gửi đều không?" }),
+  );
   expect(screen.getAllByText("Chưa kết luận")).toHaveLength(3);
 });
 it("validates a custom range before fetching and separates saved preferences by user", async () => {
@@ -125,12 +156,13 @@ it("validates a custom range before fetching and separates saved preferences by 
   );
   const fetch = vi
     .fn()
-    .mockImplementation(
-      async () => new Response(JSON.stringify({ data: report })),
+    .mockImplementation(async (url: string) =>
+      response(url.includes("/summary") ? [row] : report),
     );
   vi.stubGlobal("fetch", fetch);
   mount();
-  await screen.findByText("Số đo có dùng được không?");
+  await inspect();
+  await screen.findByRole("heading", { name: "Số đo có dùng được không?" });
   fireEvent.change(screen.getByLabelText("Khoảng thời gian"), {
     target: { value: "custom" },
   });

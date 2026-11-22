@@ -12,11 +12,6 @@ export function QualityTab({ report }: { report: DiagnosticReport }) {
   return (
     <section className="panel dd-section">
       <h2>Số đo có dùng được không?</h2>
-      <p>
-        Cảm biến đang chuẩn bị đo và cảm biến đọc lỗi là hai tình trạng khác
-        nhau. Tín hiệu khí chưa hiệu chuẩn vẫn có thể xem ở dạng ADC, chưa dùng
-        để suy ra nồng độ.
-      </p>
       <div className="dd-quality-grid">
         {report.quality.map((item) => (
           <article className="dd-quality" key={item.sensor}>
@@ -34,24 +29,26 @@ export function QualityTab({ report }: { report: DiagnosticReport }) {
                 ))}
             </div>
             <dl>
-              {Object.entries(item.counts).map(([key, count]) => (
-                <div key={key}>
-                  <dt>
-                    <i className={`dd-q-${key}`} />
-                    {qualityNames[key]}
-                  </dt>
-                  <dd>
-                    {count.toLocaleString("vi-VN")}{" "}
-                    <small>
-                      (
-                      {item.total
-                        ? ((100 * count) / item.total).toFixed(1)
-                        : "—"}
-                      %)
-                    </small>
-                  </dd>
-                </div>
-              ))}
+              {Object.entries(item.counts)
+                .filter(([, count]) => count > 0)
+                .map(([key, count]) => (
+                  <div key={key}>
+                    <dt>
+                      <i className={`dd-q-${key}`} />
+                      {qualityNames[key]}
+                    </dt>
+                    <dd>
+                      {count.toLocaleString("vi-VN")}{" "}
+                      <small>
+                        (
+                        {item.total
+                          ? ((100 * count) / item.total).toFixed(1)
+                          : "—"}
+                        %)
+                      </small>
+                    </dd>
+                  </div>
+                ))}
             </dl>
             {item.stale ? (
               <p className="dd-muted">
@@ -62,19 +59,6 @@ export function QualityTab({ report }: { report: DiagnosticReport }) {
           </article>
         ))}
       </div>
-      <details>
-        <summary>Hiểu các trạng thái</summary>
-        <p>
-          Hợp lệ: mẫu đáp ứng điều kiện đọc của thiết bị. Chưa hiệu chuẩn: có
-          tín hiệu ADC nhưng chưa xác định nồng độ khí. Đang khởi động/gia
-          nhiệt: chưa sẵn sàng đánh giá. Lỗi đọc: thiết bị báo không lấy được số
-          đo.
-        </p>
-        <p>
-          Tỷ lệ ở đây tính trên các mẫu đã nhận, không phải tỷ lệ thời gian hoạt
-          động hoặc chứng nhận độ chính xác của cảm biến.
-        </p>
-      </details>
     </section>
   );
 }
@@ -88,10 +72,6 @@ export function EventsTab({ report }: { report: DiagnosticReport }) {
   return (
     <section className="panel dd-section">
       <h2>Có khoảng nào cần xem lại?</h2>
-      <p>
-        Các dấu hiệu dưới đây giúp tìm đoạn dữ liệu cần kiểm tra. Môi trường ổn
-        định hoặc một thay đổi thật cũng có thể tạo dấu hiệu tương tự.
-      </p>
       {report.event_count ? (
         <>
           <p role="status">
@@ -122,25 +102,8 @@ export function EventsTab({ report }: { report: DiagnosticReport }) {
           </Table>
         </>
       ) : (
-        <div className="dd-empty">
-          Chưa thấy dấu hiệu theo ngưỡng đã chọn. Điều này không thay thế việc
-          kiểm tra thiết bị.
-        </div>
+        <div className="dd-empty">Chưa ghi nhận dấu hiệu trong nhóm này.</div>
       )}
-      <details>
-        <summary>Cách nhận diện</summary>
-        <p>
-          Khoảng trống dựa trên thời gian hoạt động giữa hai mẫu trong cùng
-          phiên khởi động và khoảng im lặng cuối kỳ. Chu kỳ tham chiếu theo
-          phiên bản cấu hình của mẫu nếu còn lịch sử. Đứng tín hiệu chỉ xét
-          chuỗi liên tục. Thay đổi nhanh chỉ xét hai mẫu cách nhau tối đa 2
-          phút; bỏ qua mẫu lỗi và lần đổi độ phân giải ADC.
-        </p>
-        <p>
-          Thời điểm trong bảng là lúc server nhận; mẫu gửi bù có thể được nhận
-          cùng lúc dù được đo cách xa nhau.
-        </p>
-      </details>
     </section>
   );
 }
@@ -187,21 +150,6 @@ export function ConnectionTab({
           {duration(c.delay_p95_ms)}
         </Stat>
       </div>
-      <p>
-        Thiết bị có thể vẫn online nhưng cảm biến không gửi số đo mới. Thời gian
-        đo–nhận gồm cả chờ gửi, truyền mạng và sai lệch đồng hồ; không phải phép
-        đo riêng tốc độ Wi‑Fi.
-      </p>
-      <details>
-        <summary>Giới hạn của lịch sử kết nối</summary>
-        <p>
-          Hệ thống dùng trạng thái ngay trước khoảng chọn làm mốc và cắt thời
-          gian mất kết nối theo hai biên. Phần chưa có mốc được ghi chưa xác
-          định. Khoảng cách mẫu được đo trong cùng phiên khởi động, không phải
-          khoảng cách giữa các gói mạng; gửi gộp có thể làm hai đại lượng này
-          khác nhau.
-        </p>
-      </details>
     </section>
   );
 }
@@ -215,19 +163,6 @@ export function ClockTab({ report }: { report: DiagnosticReport }) {
         <Stat title="Lần giờ đo đi lùi">{report.clock.backwards}</Stat>
         <Stat title="Mẫu có giờ đo sau lúc nhận">{report.clock.future}</Stat>
       </div>
-      <p>
-        Nếu thiết bị chưa đồng bộ giờ, hãy xem lịch sử theo thời gian server
-        nhận. Mẫu có giờ đo sau lúc nhận có thể do đồng hồ lệch; phần chênh lệch
-        âm không được gộp vào thống kê độ trễ.
-      </p>
-      <details>
-        <summary>Cách kiểm tra giờ đi lùi</summary>
-        <p>
-          Sắp xếp theo phiên khởi động và số thứ tự mẫu, chỉ so sánh thời gian
-          đo của hai mẫu cùng phiên. Mẫu đến server không đúng thứ tự không tự
-          tạo lỗi giờ đi lùi.
-        </p>
-      </details>
     </section>
   );
 }
@@ -247,11 +182,6 @@ export function SessionsTab({ report }: { report: DiagnosticReport }) {
           {report.firmware_change_count}
         </Stat>
       </div>
-      <p>
-        Phiên đầu có thể đã bắt đầu trước khoảng đang xem. Thời điểm bên dưới là
-        lúc server quan sát được, không khẳng định thời điểm khởi động chính xác
-        hay nguyên nhân.
-      </p>
       {report.sessions.length ? (
         <>
           <p>Hiển thị tối đa 200 phiên gần nhất trong khoảng có dữ liệu.</p>

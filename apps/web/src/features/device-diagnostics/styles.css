@@ -443,3 +443,51 @@
 .dd-distribution .dd-map-intro {margin: 10px 0; line-height: 1.55;}
 .dd-distribution .dd-map-reading {margin: 0 0 14px; padding-inline-start: 10px; border-inline-start: 3px solid #dc7c2d; font-weight: 600;}
 .dd-map-marker.dd-source-label {width: auto; padding-inline: 4px; border-radius: 5px;}
+
+.dd-hub {display:grid;gap:18px}
+.dd-hub .page-title {margin-bottom:0;display:flex;align-items:center;justify-content:space-between}
+.dd-hub button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel))}
+.dd-help {position:relative}
+.dd-help [role=tooltip]{position:absolute;right:0;top:100%;z-index:5;width:min(280px,75vw);padding:10px;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+.dd-help dialog {margin:auto;width:min(540px,92vw);max-height:80dvh;padding:24px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text)}
+.dd-help dialog::backdrop {background:#0c1825b3}
+.dd-help dialog h3,.dd-help dialog p {margin-block:12px}
+.dd-workbench {display:grid;align-items:start;gap:16px}
+.dd-workbench.has-detail {grid-template-columns:minmax(235px,1fr) minmax(0,2fr)}
+.dd-fleet,.dd-room,.dd-detail {padding:clamp(14px,2vw,24px)}
+.dd-detail {border-inline-start:3px solid var(--accent);background:var(--panel);min-width:0}
+.dd-detail-wrap {min-width:0}
+.dd-fleet input {margin-block:14px;width:100%}
+.dd-fleet details,.dd-room details {margin-block:12px}
+.dd-hub .dd-station {display:flex;justify-content:start;text-align:left;width:100%;border:0;border-top:1px solid var(--border);border-radius:0;padding:13px 6px;gap:12px;overflow-wrap:anywhere}
+.dd-station>span {flex:1;display:grid}
+.dd-station small,.dd-room figcaption {color:var(--muted)}
+.dd-issue {color:#b7791b}.dd-ok {color:var(--accent)}
+.dd-current article {padding:10px 14px;border-inline-start:3px solid #cc9036;margin:12px 0;background:color-mix(in srgb,#cc9036 8%,var(--panel))}
+.dd-room-controls,.dd-point-list,.dd-point-detail {display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-block:12px}
+.dd-room label {display:grid;gap:4px}
+.dd-room-field {max-width:760px;margin:16px auto}
+.dd-floor {position:relative;aspect-ratio:1.65;border:6px solid var(--border);border-radius:6px;background:repeating-linear-gradient(-45deg,var(--panel) 0 7px,var(--border) 7px 9px)}
+.dd-floor canvas {height:100%;width:100%}
+.dd-floor .dd-pin {position:absolute;transform:translate(-50%,-50%);border:2px solid #fff;background:#163d51;color:white;border-radius:50%;width:32px;height:32px;padding:0;font-weight:700}
+.dd-floor .dd-pin[aria-pressed=true]{background:#065d65;outline:3px solid #ffcd69;z-index:1}
+.dd-ramp {display:inline-block;width:70px;height:8px;background:linear-gradient(to right,#f2f7e5,#58b8a9,#1e4b6e);margin-right:6px}
+.dd-hub summary {cursor:pointer}
+.dd-detail .dd-tabs {flex-wrap:wrap}
+@media(max-width:760px){.dd-workbench.has-detail{display:block}.dd-workbench.has-detail .dd-fleet{display:none}.dd-detail{border:0;padding:12px}.dd-room-controls label{width:100%}.dd-page .dd-tabs{flex-wrap:wrap}.dd-detail .dd-toolbar{display:flex;flex-wrap:wrap}.dd-detail .dd-toolbar label{max-width:100%}}
+
+.dd-fleet h2,.dd-room h2,.dd-detail>h2 {font-size:1.35rem}
+.dd-station>svg:first-child {box-sizing:content-box;padding:8px;border-radius:9px;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.dd-station[data-impact=attention]>svg:first-child{color:#b97912;background:color-mix(in srgb,#cc9120 14%,transparent)}
+.dd-station[data-impact=fault]>svg:first-child{color:#d95051;background:color-mix(in srgb,#dc5555 14%,transparent)}
+.dd-station strong {font-size:.98rem}
+.dd-station time {color:var(--muted);font-size:.76rem;line-height:1.5;text-align:end}
+.dd-time-track {height:12px;position:relative;border-radius:4px;background:var(--border);overflow:hidden;margin-top:16px}
+.dd-time-track i {position:absolute;top:0;bottom:0;min-width:3px;background:#ca873e}
+.dd-time-track i[data-kind=clock]{background:#9384cb}
+.dd-time-track i[data-kind=gap]{background:#d45c54}
+.dd-hub .dd-fleet details {margin-bottom:0}
+
+.dd-hub .page-title {flex-direction:row;text-align:start;gap:8px}.dd-hub .page-title h1 {margin:0}
+.dd-room-field figcaption {display:flex;align-items:center;gap:6px;margin-top:8px}
+.dd-field-reading {margin:0 0 10px;padding:8px 12px;border-inline-start:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}

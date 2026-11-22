@@ -1,6 +1,7 @@
 import type { Router } from "express";
 import { z } from "zod";
 import {
+  diagnosticOptionsSchema,
   diagnosticQuerySchema,
   type DiagnosticInput,
   type Reading,
@@ -9,10 +10,21 @@ import type { FeatureContext } from "../../lib/context.js";
 import { ApiError } from "../../lib/errors.js";
 import { analyzeDiagnostics } from "./analysis.js";
 
+import { diagnosticSummary } from "./summary.js";
+
 export function registerDeviceDiagnostics(
   router: Router,
   { db, reply }: FeatureContext,
 ) {
+  router.get("/diagnostics/summary", async (req, res) => {
+    reply(
+      res,
+      await diagnosticSummary(
+        db,
+        diagnosticOptionsSchema.strict().parse(req.query),
+      ),
+    );
+  });
   router.get("/devices/:id/diagnostics", async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const query = diagnosticQuerySchema.parse(req.query);

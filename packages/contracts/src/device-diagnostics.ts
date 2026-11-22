@@ -97,3 +97,13 @@ export type DiagnosticReport = {
   reboots_observed: number;
   notices: DiagnosticNotice[];
 };
+
+export type DiagnosticSummaryRow = {
+  device_id: string;
+  name: string;
+  room: string | null;
+  source_kind: "physical" | "simulator";
+  last_seen_at: string | null;
+  recovered_at: string | null;
+  notices: DiagnosticNotice[];
+};

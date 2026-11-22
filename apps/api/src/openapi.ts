@@ -325,6 +325,9 @@ export const openapi = {
         requestBody: requestBody(deviceEventsSchema),
       },
     },
+    '/api/v1/diagnostics/summary': {
+      get: operation('Danh sách trạm đang theo dõi, phòng và dấu hiệu kỹ thuật hiện tại'),
+    },
     '/api/v1/alerts/overview-day': {
       get: operation('Số sự cố phát sinh và kết thúc trong 24 giờ qua tại các trạm đang theo dõi'),
     },
