@@ -65,9 +65,7 @@ export function buildDemoScenario(
     const last = points.at(-1)!;
     histories[room.id] = {
       points, validSamples: points.length, rejectedSamples: 0, duplicateTimestamps: 0,
-      latestSampleAt: last.timestamp,
-      latestSample: { timestamp: last.timestamp, temperature: last.temperature!, humidity: last.humidity! },
-      latestReceivedAt: last.timestamp,
+      latestSampleAt: last.timestamp, latestReceivedAt: last.timestamp,
     };
     devices.push({
       id: room.id, name: room.name, location: room.name, source_kind: 'simulator',

@@ -51,48 +51,6 @@ describe('normalization and trend', () => {
     points[4]!.timestamp += mins(4);
     expect(analyzeTrend(points, 'temperature', START + mins(8)).slopePerMinute).toBeCloseTo(1);
   });
-  it('refuses a trend over large holes despite five valid observations', () => {
-    const data = series([20, 21, 22, 23, 24]);
-    [0, 10, 15, 20, 30].forEach((minute, index) => { data[index]!.timestamp = START + mins(minute); });
-    const result = analyzeTrend(data, 'temperature', START + mins(30));
-    expect(result).toMatchObject({ status: 'insufficient', sampleCount: 5, slopePerMinute: null });
-  });
-  it('tolerates one missing minute but not two consecutive missing minutes', () => {
-    const valid = series([20, 21, 23, 24, 25, 26]);
-    valid.forEach((point, i) => { point.timestamp = START + mins(i >= 2 ? i + 1 : i); });
-    expect(analyzeTrend(valid, 'temperature', START + mins(6)).status).toBe('increasing');
-    const broken = valid.map((point) => ({ ...point }));
-    broken[2]!.timestamp = START + mins(4);
-    expect(analyzeTrend(broken, 'temperature', START + mins(6)).status).toBe('insufficient');
-  });
-  it('calculates a causal three-minute moving-average slope instead of a raw regression', () => {
-    const values = [20, 20, 24, 21, 21, 24, 24, 25];
-    const data = series(values);
-    const result = analyzeTrend(data, 'temperature', START + mins(7));
-    const smoothed = values.slice(2).map((_, index) =>
-      ({ timestamp: START + mins(index + 2), value: (values[index]! + values[index + 1]! + values[index + 2]!) / 3 }));
-    const expected = smoothed.reduce((sum, item, i) => sum + (i - 2.5) * item.value, 0) /
-      smoothed.reduce((sum, _, i) => sum + (i - 2.5) ** 2, 0);
-    expect(result.slopePerMinute).toBeCloseTo(expected);
-    // A change to an observation AFTER the tested cutoff must not affect its slope.
-    const future = series([125], undefined, START + mins(8));
-    expect(analyzeTrend([...data, ...future], 'temperature', START + mins(7)).slopePerMinute).toBeCloseTo(expected);
-  });
-  it('ignores invalid values, future rows and identical-timestamp retransmissions', () => {
-    const data = series([20, 21, 22, 23, 24]);
-    const bogus = [
-      { ...data[0]!, timestamp: Number.NaN },
-      { ...data[1]!, temperature: Infinity },
-      { ...data[2]!, temperature: 300 },
-      { ...data[4]!, timestamp: START + mins(30) },
-      { ...data[2]! },
-    ];
-    const clean = analyzeTrend(data, 'temperature', START + mins(4));
-    const result = analyzeTrend([...bogus, ...data].reverse(), 'temperature', START + mins(4));
-    expect(result).toMatchObject({ status: 'increasing', sampleCount: 5, current: 24 });
-    expect(result.slopePerMinute).toBeCloseTo(clean.slopePerMinute!);
-    expect(analyzeTrend([{ ...data[0]!, humidity: Number.NaN }], 'humidity', START).sampleCount).toBe(0);
-  });
   it('observes exact stale boundary', () => {
     const points = series([25, 26, 27, 28, 29]);
     const end = points.at(-1)!.timestamp;

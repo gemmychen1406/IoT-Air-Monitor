@@ -147,6 +147,6 @@ export function selectForecastModel(
   const fallback: ForecastModel = status === 'watch' ? 'holt' : 'naive';
   return {
     ...base, model: fallback, basis: 'fallback', pairs: Number.isFinite(pairs) ? pairs : 0, mae: null,
-    explanation: `Chọn ${MODEL_LABELS[fallback]} theo trạng thái ${status === 'watch' ? 'biến động liên tục' : status === 'normal' ? 'chưa ghi nhận biến động liên tục vượt ngưỡng' : 'chưa đủ dữ liệu để kết luận'} hiện tại (chưa đủ mốc đối chiếu).`,
+    explanation: `Chọn ${MODEL_LABELS[fallback]} theo trạng thái ${status === 'watch' ? 'biến động liên tục' : status === 'normal' ? 'ổn định' : 'chưa đủ dữ liệu để kết luận'} hiện tại (chưa đủ mốc đối chiếu).`,
   };
 }

@@ -116,39 +116,13 @@ export function fitLine(data: readonly { timestamp: number; value: number }[]) {
   return { origin, slope, intercept: my - slope * mx };
 }
 
-/** An explicit 30-minute view: keep valid observations only, and give duplicate
- * minute timestamps one equal-weight contribution (no extra weight for replays).
- * normalizeReadings normally guarantees both properties, but analyzeTrend can
- * also receive independently constructed/test histories.
- */
-function trendObservations(points: readonly MinuteReading[], metric: Measure, nowMs: number) {
-  const buckets = new Map<number, { sum: number; count: number }>();
-  for (const point of points) {
-    const value = point[metric];
-    if (!Number.isFinite(point.timestamp) || point.timestamp > nowMs ||
-        typeof value !== 'number' || !Number.isFinite(value) ||
-        (metric === 'humidity' && (value < 0 || value > 100)) ||
-        (metric === 'temperature' && (value < -40 || value > 125))) continue;
-    const existing = buckets.get(point.timestamp) ?? { sum: 0, count: 0 };
-    existing.sum += value;
-    existing.count++;
-    buckets.set(point.timestamp, existing);
-  }
-  return [...buckets].sort(([a], [b]) => a - b)
-    .map(([timestamp, bucket]) => ({ timestamp, value: bucket.sum / bucket.count }));
-}
-
-/** Trend is derived from a CAUSAL trailing three-minute average. Only fully
- * observed, consecutive minute buckets contribute to the smoothed regression;
- * if there are fewer than two smoothed values, retain the legacy raw fallback.
- * No gap is ever filled with an invented reading.
- */
 export function analyzeTrend(points: readonly MinuteReading[], metric: Measure, nowMs: number, actualSampleAt?: number | null): TrendResult {
-  const valid = trendObservations(points, metric, nowMs);
-  const last = valid.at(-1);
+  const last = latestValid(points, metric);
   const ageMs = last ? Math.max(0, nowMs - (actualSampleAt ?? last.timestamp)) : null;
-  const window = last ? valid.filter((point) => point.timestamp >= last.timestamp - CFG.trendMinutes * CFG.minuteMs) : [];
-  const values = window.map((point) => point.value);
+  const window = last
+    ? points.filter((p) => p.timestamp >= last.timestamp - CFG.trendMinutes * CFG.minuteMs && p.timestamp <= last.timestamp && p[metric] !== null)
+    : [];
+  const values = window.map((p) => p[metric] as number);
   const result: TrendResult = {
     status: 'insufficient', slopePerMinute: null, current: last?.value ?? null,
     average: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -156,29 +130,17 @@ export function analyzeTrend(points: readonly MinuteReading[], metric: Measure, 
     maximum: values.length ? Math.max(...values) : null,
     sampleCount: values.length, lastSampleAt: last?.timestamp ?? null, ageMs,
   };
+  // Keep historical slope available when the sensor has stopped sending data;
+  // the status remains stale so this can never be mistaken for a live trend.
   const stale = ageMs !== null && ageMs > CFG.staleAfterMs;
-  const unavailable = { ...result, status: stale ? 'stale' as const : 'insufficient' as const };
-  if (window.length < CFG.regressionMinimum) return unavailable;
-
-  // With 1-minute buckets, a difference >2 minutes means more than one
-  // consecutive minute is unobserved; never infer a reliable trend across it.
-  const maxGapMs = CFG.trendMaxGapMinutes * CFG.minuteMs;
-  if (window.some((point, index) => index > 0 &&
-      point.timestamp - window[index - 1]!.timestamp > maxGapMs)) return unavailable;
-
-  const smoothed: { timestamp: number; value: number }[] = [];
-  for (let i = CFG.movingAverageMinutes - 1; i < window.length; i++) {
-    const trailing = window.slice(i - CFG.movingAverageMinutes + 1, i + 1);
-    if (trailing.some((point, index) => index > 0 &&
-        point.timestamp - trailing[index - 1]!.timestamp !== CFG.minuteMs)) continue;
-    smoothed.push({ timestamp: trailing.at(-1)!.timestamp,
-      value: trailing.reduce((sum, point) => sum + point.value, 0) / trailing.length });
-  }
-  const line = fitLine(smoothed.length >= 2 ? smoothed : window);
-  if (!line || !Number.isFinite(line.slope)) return unavailable;
+  if (window.length < CFG.regressionMinimum) return { ...result, status: stale ? 'stale' : 'insufficient' };
+  const line = fitLine(window.map((point) => ({ timestamp: point.timestamp, value: point[metric]! })));
+  if (!line) return { ...result, status: stale ? 'stale' : 'insufficient' };
   const stableThreshold = metric === 'temperature' ? CFG.temperatureStableSlope : CFG.humidityStableSlope;
-  return { ...result, slopePerMinute: line.slope,
-    status: stale ? 'stale' : line.slope > stableThreshold ? 'increasing' : line.slope < -stableThreshold ? 'decreasing' : 'stable' };
+  return {
+    ...result, slopePerMinute: line.slope,
+    status: stale ? 'stale' : line.slope > stableThreshold ? 'increasing' : line.slope < -stableThreshold ? 'decreasing' : 'stable',
+  };
 }
 
 export function rapidSlope(points: readonly MinuteReading[], metric: Measure) {
