@@ -1,5 +1,5 @@
-﻿import { useRef, useState } from "react";
-import { ContactRound } from "lucide-react";
+import { useRef, useState } from "react";
+import { ContactRound, Phone } from "lucide-react";
 import { canonicalPhone, type ContactView } from "@iot/contracts";
 import { LoadState } from "../../components/FeatureUI.js";
 import {
@@ -41,7 +41,9 @@ function ContactActions({ contact }: { contact: ContactView }) {
         onFocus={(e) => e.currentTarget.select()}
       />
       <div className="button-row">
-        <a href={`tel:${contact.phone}`}>Gọi</a>
+        <a className="ag-support-call" href={`tel:${contact.phone}`}>
+          <Phone size={16} aria-hidden="true" /> Gọi
+        </a>
         <button disabled={copying} onClick={() => void copyPhone()}>
           Sao chép số
         </button>
