@@ -16,6 +16,7 @@ import { forecastMeasure } from './forecasting.js';
 import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './modelSelection.js';
 import { evaluateAdvisory } from './advisory.js';
 import { ForecastValidationPanel } from './ForecastValidationPanel.js';
+import { useAdvancedCurveScores } from './useAdvancedCurveScores.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
 import { PredictionChart } from './ForecastCharts.js';
 import ForecastDhtChart from './ForecastDhtChart.js';
@@ -136,10 +137,12 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const temperatureTrend = useMemo(() => analyzeTrend(points, 'temperature', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   // Mỗi chỉ số có thể được chọn thuật toán khác nhau trên cùng mốc dự báo.
+  // Shared incremental results feed both the automatic choice and MAE table.
+  const advancedScores = useAdvancedCurveScores(points, horizon, tab === 'forecast' && points.length > 0 && (model === 'auto' || showValidation));
   const selection = useMemo(() => ({
-    temperature: selectForecastModel(points, 'temperature', horizon, nowMs, latestSampleAt, model),
-    humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model),
-  }), [points, model, horizon, nowMs, latestSampleAt]);
+    temperature: selectForecastModel(points, 'temperature', horizon, nowMs, latestSampleAt, model, advancedScores?.temperature ?? null),
+    humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model, advancedScores?.humidity ?? null),
+  }), [points, model, horizon, nowMs, latestSampleAt, advancedScores]);
   const forecast = useMemo(() => ({
     temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt, latestSample?.temperature),
     humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt, latestSample?.humidity),
@@ -235,7 +238,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             </button>
             <p className="ft-muted">Kết quả chỉ phản ánh các mốc quá khứ đã có số đo để đối chiếu, không bảo đảm dự báo tương lai chính xác tuyệt đối.</p>
           </section>
-          {showValidation ? <ForecastValidationPanel history={points} horizon={horizon} model={{
+          {showValidation ? <ForecastValidationPanel history={points} horizon={horizon} advancedScores={advancedScores} model={{
             temperature: selection.temperature.model, humidity: selection.humidity.model,
           }}/> : null}
           <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>

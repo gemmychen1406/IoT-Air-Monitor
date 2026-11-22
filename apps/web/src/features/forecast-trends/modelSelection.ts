@@ -4,7 +4,7 @@ import { FORECAST_CONFIG as CFG } from './config.js';
 import { evaluateDhtMetricStatus } from './dhtAdvisory.js';
 import type { DhtAssessmentStatus } from './dhtAdvisory.js';
 import { walkForward, type ValidationRow } from './validation.js';
-import { compareAdvancedCurves } from './curveValidation.js';
+import { compareAdvancedCurves, type CurveScore } from './curveValidation.js';
 import type { ForecastModel, Measure, MinuteReading } from './types.js';
 
 export type ForecastSelection = 'auto' | ForecastModel;
@@ -79,6 +79,7 @@ export function describeMaeChoice(
 export function selectForecastModel(
   points: readonly MinuteReading[], metric: Measure, horizon: 15 | 30,
   nowMs: number, latestSampleAt?: number | null, preference: ForecastSelection = 'auto',
+  advancedScores?: Partial<Record<'random_forest' | 'holt_winters', CurveScore>> | null,
 ): ModelSelectionResult {
   const status = evaluateDhtMetricStatus(points, metric, nowMs, latestSampleAt);
   const lastValid = [...points].reverse().find((point) => point[metric] !== null && Number.isFinite(point[metric]));
@@ -97,23 +98,29 @@ export function selectForecastModel(
     explanation: `Bạn đang chọn ${MODEL_LABELS[preference]} thủ công.`,
   };
 
-  // Compare advanced models against the strongest simple model on the SAME origins
-  // and at ALL 5-minute marks. This never rewards a prettier-looking curve.
+  // Reuse full-history incremental scores for reporting, but keep automatic
+  // selection sensitive to RECENT completed predictions as before. Scoring
+  // recent comparisons reads the SAME per-origin cache: no extra retraining.
   const advanced = (['random_forest', 'holt_winters'] as const).flatMap((name) => {
-    const recent = compareAdvancedCurves(points, metric, horizon, name, 20, 50);
-    const evaluation = recent.pairs >= 8 ? recent : compareAdvancedCurves(points, metric, horizon, name, 40);
+    const full = advancedScores === undefined
+      ? compareAdvancedCurves(points, metric, horizon, name)
+      : advancedScores?.[name];
+    if (!full || full.pendingOrigins > 0) return [];
+    const recent = compareAdvancedCurves(points, metric, horizon, name, undefined, 20, 0);
+    const useRecent = recent.pendingOrigins === 0 && recent.pairs >= 8;
+    const evaluation = useRecent ? recent : full;
     const gain = evaluation.mae !== null && evaluation.comparisonMae !== null
       ? evaluation.comparisonMae - evaluation.mae : 0;
     const absoluteGain = metric === 'temperature' ? 0.05 : 0.2;
-    const significant = evaluation.pairs >= (recent.pairs >= 8 ? 8 : 20) &&
+    const significant = evaluation.pairs >= (useRecent ? 8 : 20) &&
       gain >= absoluteGain && evaluation.comparisonMae !== null &&
       evaluation.comparisonMae > 0 && gain / evaluation.comparisonMae >= 0.08;
-    return significant ? [{ evaluation, recent: recent.pairs >= 8, gain }] : [];
+    return significant ? [{ evaluation, useRecent, gain }] : [];
   }).sort((a, b) => b.gain - a.gain);
   if (advanced[0]) {
-    const { evaluation, recent } = advanced[0];
+    const { evaluation, useRecent } = advanced[0];
     return {
-      ...base, model: evaluation.model, basis: recent ? 'recent_mae' : 'mae',
+      ...base, model: evaluation.model, basis: useRecent ? 'recent_mae' : 'mae',
       pairs: evaluation.pairs, mae: evaluation.mae,
       explanation: `Chọn ${MODEL_LABELS[evaluation.model]}: MAE đa mốc ${pretty(evaluation.mae!, metric)} trên ${evaluation.pairs} lần dự báo hồi cứu (mốc +5 đến +${horizon} phút), thấp hơn ${MODEL_LABELS[evaluation.comparisonModel!]} trên cùng tập đối chiếu.`,
     };
