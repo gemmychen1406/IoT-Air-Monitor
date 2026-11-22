@@ -3,11 +3,13 @@ import { sensorFreshness } from "../../lib/freshness.js";
 import type { Point } from "./simulation/engine.js";
 
 export type GasMetric = "mq2" | "mq7";
+export const freshnessWindow = { mq2: 15000, mq7: 180000 };
 export type Measurement = Point & { sampledAt: string; bits: number };
 export function roomMeasurements(
   devices: RoomMapDevice[],
   metric: GasMetric,
   now: number,
+  historical = false,
 ) {
   const candidates: Measurement[] = [];
   const excluded: { name: string; reason: string }[] = [];
@@ -16,21 +18,23 @@ export function roomMeasurements(
     const sensor = r?.payload.sensors[metric];
     const reason = !device.position
       ? "Chưa đặt vị trí"
-      : device.status !== "online"
+      : !historical && device.status !== "online"
         ? "Chưa kết nối"
-        : !r ||
-            !sensor ||
-            sensor.adc_raw === null ||
-            !["uncalibrated", "valid"].includes(sensor.quality)
-          ? "Chưa có số đo hợp lệ"
-          : sensorFreshness(
-                r,
-                sensor.age_ms,
-                now,
-                metric === "mq7" ? 180000 : 15000,
-              ) !== "Dữ liệu mới"
-            ? "Chưa có số đo mới"
-            : null;
+        : historical && !r
+          ? "Thiếu mẫu tại thời điểm đã chọn"
+          : !r ||
+              !sensor ||
+              sensor.adc_raw === null ||
+              !["uncalibrated", "valid"].includes(sensor.quality)
+            ? "Chưa có số đo hợp lệ"
+            : sensorFreshness(
+                  r,
+                  sensor.age_ms,
+                  now,
+                  freshnessWindow[metric],
+                ) !== "Dữ liệu mới"
+              ? "Chưa có số đo mới"
+              : null;
     if (reason) {
       excluded.push({ name: device.name, reason });
       continue;
