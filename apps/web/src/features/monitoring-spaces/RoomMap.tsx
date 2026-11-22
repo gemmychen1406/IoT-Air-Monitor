@@ -1,10 +1,26 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { AlertOctagon, Check, CircleHelp, MapPin, TriangleAlert } from 'lucide-react';
+import {
+  AlertOctagon,
+  ArrowUpRight,
+  Check,
+  CircleHelp,
+  Droplets,
+  MapPin,
+  Thermometer,
+  TriangleAlert,
+} from 'lucide-react';
 import {
   mapThresholdInput,
   type AreaView,
+  type IncidentDetail,
   type MapThresholds,
   type RoomMapDevice,
   type RoomMapView,
@@ -13,7 +29,18 @@ import {
 import { dateText, LoadState } from '../../components/FeatureUI.js';
 import { api } from '../../lib/api.js';
 import { sensorFreshness } from '../../lib/freshness.js';
-import { mapConnectionLabels, mapStatus, mapStatusLabels } from './map-status.js';
+import {
+  mapConnectionLabels,
+  mapStatus,
+  mapStatusLabels,
+} from './map-status.js';
+import {
+  AreaIncidentOverview,
+  incidentLabel,
+  incidentPriority,
+  type LocatedIncident,
+  type MapIncident,
+} from './AreaIncidentOverview.js';
 import './room-map.css';
 
 const statusIcons = {
@@ -80,26 +107,49 @@ function RoomTile({
   function point(event: MouseEvent<HTMLButtonElement>) {
     if (event.detail === 0) return onPoint({ x: 0.5, y: 0.5 });
     const rect = event.currentTarget.getBoundingClientRect();
-    const unit = (value: number) => Math.round(Math.max(0, Math.min(1, value)) * 10000) / 10000;
+    const unit = (value: number) =>
+      Math.round(Math.max(0, Math.min(1, value)) * 10000) / 10000;
     onPoint({
       x: unit((event.clientX - rect.left) / rect.width),
       y: unit((event.clientY - rect.top) / rect.height),
     });
   }
   const unplaced = room.devices.filter((device) => !device.position);
+  const incidents = room.devices.flatMap((device) => device.open_incidents);
+  const lead =
+    incidents.find((incident) => incident.severity === 'critical') ??
+    incidents[0];
   return (
-    <article className="ag-map-room" aria-label={room.name} data-archived={!!room.archived_at}>
+    <article
+      id={`ag-map-room-${room.id}`}
+      className="ag-map-room"
+      aria-label={room.name}
+      data-archived={!!room.archived_at}
+      data-severity={lead?.severity}
+      data-selected={room.devices.some((device) => device.id === selected)}
+    >
       <header>
         <h3>{room.name}</h3>
         <span>{room.devices.length} thiết bị</span>
         {room.archived_at ? <span className="badge">Đã lưu trữ</span> : null}
       </header>
-      <p>
-        {room.devices.filter((d) => d.status === 'online').length} đang kết nối ·{' '}
-        {room.devices.filter((d) => d.open_incidents.length > 0).length} thiết bị có sự cố ·{' '}
-        {room.devices.filter((d) => d.status === 'never_seen').length} chưa từng gửi
+      {lead ? (
+        <div className="ag-map-room-alert" data-severity={lead.severity}>
+          <TriangleAlert size={16} aria-hidden="true" />
+          <strong>{incidentLabel(lead.condition)}</strong>
+          <span>{incidents.length} sự cố đang mở</span>
+        </div>
+      ) : null}
+      <p className="ag-map-room-counts">
+        {room.devices.filter((d) => d.status === 'online').length} đang kết nối
+        · {room.devices.filter((d) => d.open_incidents.length > 0).length} thiết
+        bị có sự cố ·{' '}
+        {room.devices.filter((d) => d.status === 'never_seen').length} chưa từng
+        gửi
       </p>
-      {editable && <button onClick={() => setAssigning(!assigning)}>Gán thiết bị</button>}
+      {editable && (
+        <button onClick={() => setAssigning(!assigning)}>Gán thiết bị</button>
+      )}
       {editable && assigning && (
         <form
           onSubmit={async (e) => {
@@ -139,10 +189,16 @@ function RoomTile({
         onDrop={(e) => {
           e.preventDefault();
           const id = e.dataTransfer.getData('text/plain');
-          if (!editable || !room.devices.some((d) => d.id === id && !d.archived_at)) return;
+          if (
+            !editable ||
+            !room.devices.some((d) => d.id === id && !d.archived_at)
+          )
+            return;
           const rect = e.currentTarget.getBoundingClientRect();
           const clamp = (n: number) => Math.max(0, Math.min(1, n));
-          const version = e.dataTransfer.getData('application/x-airguard-layout');
+          const version = e.dataTransfer.getData(
+            'application/x-airguard-layout',
+          );
           if (!/^\d+$/.test(version)) return;
           onDrag(
             id,
@@ -162,9 +218,16 @@ function RoomTile({
             <button
               type="button"
               className="ag-map-pin"
+              id={`ag-map-device-${device.id}`}
               key={device.id}
               style={{ left: percent(position.x), top: percent(position.y) }}
-              data-edge={position.x < 0.25 ? 'left' : position.x > 0.75 ? 'right' : 'center'}
+              data-edge={
+                position.x < 0.25
+                  ? 'left'
+                  : position.x > 0.75
+                    ? 'right'
+                    : 'center'
+              }
               data-high={position.y > 0.76}
               draggable={editable && !device.archived_at}
               onDragStart={(e) => {
@@ -204,7 +267,9 @@ function RoomTile({
             <MapPin size={22} aria-hidden="true" />
           </span>
         ) : null}
-        {!placing && !room.devices.some((d) => d.position) ? <p>Chưa có điểm trên sơ đồ</p> : null}
+        {!placing && !room.devices.some((d) => d.position) ? (
+          <p>Chưa có điểm trên sơ đồ</p>
+        ) : null}
       </div>
       {unplaced.length ? (
         <ul className="ag-map-unplaced">
@@ -214,6 +279,7 @@ function RoomTile({
               <li key={device.id}>
                 <button
                   type="button"
+                  id={`ag-map-device-${device.id}`}
                   draggable={editable && !device.archived_at}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', device.id);
@@ -237,17 +303,17 @@ function RoomTile({
   );
 }
 
-function incidentLink(incident: RoomMapDevice['open_incidents'][number]) {
-  const name = { flame: 'lửa', gas: 'Gas', co: 'CO' }[incident.condition] ?? incident.condition;
+function incidentLink(incident: MapIncident, primary = false) {
   return (
     <Link
       key={incident.id}
       to={`/app/alerts/${incident.id}`}
       className="ag-incident-action"
       data-severity={incident.severity}
+      aria-label={`Mở sự cố: ${incidentLabel(incident.condition)}`}
     >
-      {incident.condition === 'flame' ? '🔥' : '⚠'} Xem sự cố {name} ·{' '}
-      {incident.severity.toUpperCase()}
+      {primary ? 'Mở sự cố' : incidentLabel(incident.condition)}{' '}
+      <ArrowUpRight size={16} aria-hidden="true" />
     </Link>
   );
 }
@@ -255,6 +321,7 @@ function incidentLink(incident: RoomMapDevice['open_incidents'][number]) {
 function StatusDetails({
   device,
   room,
+  focusedIncident,
   now,
   thresholds,
   canEdit,
@@ -267,6 +334,7 @@ function StatusDetails({
 }: {
   device: RoomMapDevice;
   room: MapRoom;
+  focusedIncident: string | null;
   now: number;
   thresholds: MapThresholds;
   canEdit: boolean;
@@ -279,9 +347,22 @@ function StatusDetails({
 }) {
   const { tone, reason } = mapStatus(device, thresholds, now);
   const sensors = device.latest?.payload.sensors;
-  const incidents = [...device.open_incidents].sort((a,b) => Number(b.severity === 'critical') - Number(a.severity === 'critical'));
-  const severityFor = (condition: string) => incidents.find(i => i.condition === condition)?.severity;
-  const freshness = device.latest ? sensorFreshness(device.latest, 0, now) : 'Chưa có mẫu';
+  const incidents = [...device.open_incidents].sort(
+    (a, b) => incidentPriority(b) - incidentPriority(a),
+  );
+  const primary =
+    incidents.find((incident) => incident.id === focusedIncident) ??
+    incidents[0];
+  const incident = useQuery({
+    queryKey: ['incident', primary?.id],
+    queryFn: () => api<IncidentDetail>(`/alerts/incidents/${primary!.id}`),
+    enabled: !!primary,
+  });
+  const severityFor = (condition: string) =>
+    incidents.find((i) => i.condition === condition)?.severity;
+  const freshness = device.latest
+    ? sensorFreshness(device.latest, 0, now)
+    : 'Chưa có mẫu';
 
   function measurement(value: number | null | undefined, unit: string) {
     return value === undefined || value === null ? '—' : `${value} ${unit}`;
@@ -290,50 +371,84 @@ function StatusDetails({
     <aside className="ag-map-detail" aria-label="Chi tiết điểm">
       <span className="eyebrow">{room.name}</span>
       <h3>{device.name}</h3>
+      {primary ? (
+        <div
+          className="ag-map-detail-incident"
+          data-severity={primary.severity}
+        >
+          <span className="ag-map-detail-severity">
+            <TriangleAlert size={15} aria-hidden="true" />{' '}
+            {primary.severity === 'critical' ? 'Nghiêm trọng' : 'Cảnh báo'}
+          </span>
+          <strong>{incidentLabel(primary.condition)}</strong>
+          {incident.data ? (
+            <small>
+              Máy chủ ghi nhận · {dateText(incident.data.first_observed_at)}
+            </small>
+          ) : (
+            <small>
+              {incident.isPending
+                ? 'Đang tải thời điểm ghi nhận…'
+                : 'Chưa tải được thời điểm ghi nhận'}
+            </small>
+          )}
+          {incidentLink(primary, true)}
+          {incidents.length > 1 ? (
+            <details>
+              <summary>Xem {incidents.length - 1} sự cố khác</summary>
+              {incidents
+                .filter((item) => item.id !== primary.id)
+                .map((item) => incidentLink(item))}
+            </details>
+          ) : null}
+        </div>
+      ) : null}
       <div className="ag-map-details-status">
-        {device.open_incidents.length === 1 ? (
-          incidentLink(device.open_incidents[0]!)
-        ) : device.open_incidents.length > 1 ? (
-          <>
-          {incidentLink(incidents[0]!)}
-          <details>
-            <summary
-              className="ag-incident-action"
-              data-severity={
-                device.open_incidents.some((i) => i.severity === 'critical')
-                  ? 'critical'
-                  : 'warning'
-              }
-            >
-              ⚠ Xem {device.open_incidents.length} sự cố ·{' '}
-              {Array.from(new Set(device.open_incidents.map((i) => i.severity.toUpperCase()))).join(
-                ' / ',
-              )}
-            </summary>
-            {incidents.slice(1).map(incidentLink)}
-          </details>
-          </>
-        ) : (
+        {!primary ? (
           <span className="ag-map-state" data-tone={tone}>
             {mapStatusLabels[tone]}
           </span>
-        )}
+        ) : null}
         <span className="badge">{mapConnectionLabels[device.status]}</span>
+        {device.source_kind === 'simulator' ? (
+          <span className="badge">Dữ liệu mô phỏng</span>
+        ) : null}
       </div>
-      {device.source_kind === 'simulator' ? <p className="caption">Dữ liệu mô phỏng</p> : null}
-      <p>{incidents.length && device.status === 'offline' ? 'Sự cố chưa kết thúc · Thiết bị mất kết nối' : reason}</p>
+      <p>
+        {primary && device.status === 'offline'
+          ? 'Sự cố chưa kết thúc · Thiết bị mất kết nối'
+          : reason}
+      </p>
       <strong>Số đo cuối cùng</strong>
-      <p className="caption">{dateText(device.latest?.payload.sampled_at)} · {freshness}</p>
+      <p className="caption">
+        {dateText(device.latest?.payload.sampled_at)} · {freshness}
+      </p>
+      <dl className="ag-map-snapshot">
+        <div>
+          <dt>
+            <Thermometer size={16} aria-hidden="true" /> Nhiệt độ
+          </dt>
+          <dd>{measurement(sensors?.dht11.temperature_c, '°C')}</dd>
+        </div>
+        <div>
+          <dt>
+            <Droplets size={16} aria-hidden="true" /> Độ ẩm
+          </dt>
+          <dd>{measurement(sensors?.dht11.humidity_pct, '%RH')}</dd>
+        </div>
+      </dl>
       <dl className="ag-map-readings">
-        <dt>Nhiệt độ</dt>
-        <dd>{measurement(sensors?.dht11.temperature_c, '°C')}</dd>
-        <dt>Độ ẩm</dt>
-        <dd>{measurement(sensors?.dht11.humidity_pct, '%RH')}</dd>
         <dt data-alert={severityFor('gas')}>MQ-2</dt>
         <dd>{measurement(sensors?.mq2.adc_raw, 'ADC')}</dd>
         <dt data-alert={severityFor('co')}>MQ-7</dt>
         <dd>{measurement(sensors?.mq7.adc_raw, 'ADC')}</dd>
-        <dt data-alert={sensors?.flame.detected ? severityFor('flame') : undefined}>Cảm biến lửa</dt>
+        <dt
+          data-alert={
+            sensors?.flame.detected ? severityFor('flame') : undefined
+          }
+        >
+          Cảm biến lửa
+        </dt>
         <dd>
           {sensors?.flame.detected == null
             ? '—'
@@ -404,6 +519,7 @@ export default function RoomMap({
 }) {
   const client = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
+  const [focusedIncident, setFocusedIncident] = useState<string | null>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const [thresholdError, setThresholdError] = useState(false);
   const [clock, setClock] = useState(Date.now);
@@ -422,9 +538,12 @@ export default function RoomMap({
       api(path, { method: 'PUT', body: JSON.stringify(body) }),
     onSuccess: async () => {
       await Promise.all(
-        ['space-map', 'monitoring-spaces', 'area-summary', 'incident-support'].map((key) =>
-          client.invalidateQueries({ queryKey: [key] }),
-        ),
+        [
+          'space-map',
+          'monitoring-spaces',
+          'area-summary',
+          'incident-support',
+        ].map((key) => client.invalidateQueries({ queryKey: [key] })),
       );
       setPlacement(null);
     },
@@ -434,7 +553,10 @@ export default function RoomMap({
   );
   const device = chosenRoom?.devices.find((device) => device.id === selected);
   const mayPlace =
-    canEdit && !area?.archived_at && !chosenRoom?.archived_at && !device?.archived_at;
+    canEdit &&
+    !area?.archived_at &&
+    !chosenRoom?.archived_at &&
+    !device?.archived_at;
   const active =
     mayPlace &&
     placement &&
@@ -442,6 +564,29 @@ export default function RoomMap({
     placement.roomId === chosenRoom?.id
       ? placement
       : null;
+
+  function selectDevice(id: string, incidentId: string | null = null) {
+    setSelected(id);
+    setFocusedIncident(incidentId);
+    setPlacement(null);
+    save.reset();
+  }
+
+  function locateIncident({ room, device, incident }: LocatedIncident) {
+    selectDevice(device.id, incident.id);
+    requestAnimationFrame(() => {
+      const pin = document.getElementById(`ag-map-device-${device.id}`);
+      const tile = document.getElementById(`ag-map-room-${room.id}`);
+      pin?.focus({ preventScroll: true });
+      const target = device.position ? tile : pin;
+      target?.scrollIntoView({
+        block: 'start',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'instant'
+          : 'smooth',
+      });
+    });
+  }
   return (
     <section className="panel ag-room-map" aria-label="Sơ đồ khu vực">
       <header className="ag-map-header">
@@ -457,7 +602,10 @@ export default function RoomMap({
         {areas.length ? (
           <label>
             Khu vực trên sơ đồ
-            <select value={area?.id ?? ''} onChange={(event) => onAreaChange(event.target.value)}>
+            <select
+              value={area?.id ?? ''}
+              onChange={(event) => onAreaChange(event.target.value)}
+            >
               {areas.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -468,9 +616,15 @@ export default function RoomMap({
           </label>
         ) : null}
       </header>
-      {!area ? <p className="muted">Thêm khu vực và phòng để bắt đầu.</p> : null}
+      {!area ? (
+        <p className="muted">Thêm khu vực và phòng để bắt đầu.</p>
+      ) : null}
       {area ? (
-        <LoadState pending={map.isPending} error={map.error} retry={() => void map.refetch()} />
+        <LoadState
+          pending={map.isPending}
+          error={map.error}
+          retry={() => void map.refetch()}
+        />
       ) : null}
       <LoadState error={save.error} />
       {save.isError && (
@@ -486,11 +640,22 @@ export default function RoomMap({
       )}
       {save.isSuccess ? (
         <p className="notice" role="status">
-          {save.variables.path.endsWith('/room') ? 'Đã gỡ thiết bị khỏi phòng.' : 'Đã lưu sơ đồ.'}
+          {save.variables.path.endsWith('/room')
+            ? 'Đã gỡ thiết bị khỏi phòng.'
+            : 'Đã lưu sơ đồ.'}
         </p>
       ) : null}
       {map.data && area ? (
         <>
+          <AreaIncidentOverview
+            rooms={map.data.rooms}
+            selectedIncident={
+              device?.open_incidents.find((item) => item.id === focusedIncident)
+                ?.id
+            }
+            onLocate={locateIncident}
+            disabled={save.isPending}
+          />
           <ul className="ag-map-legend" aria-label="Chú giải trạng thái">
             {Object.entries(mapStatusLabels).map(([tone, label]) => (
               <li key={tone}>
@@ -499,98 +664,124 @@ export default function RoomMap({
               </li>
             ))}
           </ul>
-          <div className="ag-map-workspace">
-            <div className="ag-map-grid">
-              {!map.data.rooms.length ? <p className="muted">Khu vực này chưa có phòng.</p> : null}
-              {map.data.rooms.map((room) => (
+          <div
+            className="ag-map-workspace"
+            style={
+              {
+                '--ag-map-rows': Math.max(
+                  1,
+                  Math.ceil(map.data.rooms.length / 2),
+                ),
+              } as CSSProperties
+            }
+          >
+            {!map.data.rooms.length ? (
+              <p className="muted">Khu vực này chưa có phòng.</p>
+            ) : null}
+            {map.data.rooms.map((room) => (
+              <Fragment key={room.id}>
                 <RoomTile
-                  key={room.id}
                   room={room}
                   editable={canEdit && !area.archived_at && !room.archived_at}
                   unassigned={unassigned}
                   onAssign={onAssign}
                   onDrag={(id, point, version) => {
-                    setSelected(id);
-                    setPlacement({ roomId: room.id, deviceId: id, version, point });
-                    save.reset();
+                    selectDevice(id);
+                    setPlacement({
+                      roomId: room.id,
+                      deviceId: id,
+                      version,
+                      point,
+                    });
                   }}
                   now={clock}
                   thresholds={map.data.thresholds}
                   selected={selected}
                   placement={active}
-                  onSelect={(id) => {
-                    setSelected(id);
-                    setPlacement(null);
-                    save.reset();
-                  }}
+                  onSelect={selectDevice}
                   onPoint={(point) =>
-                    setPlacement((current) => (current ? { ...current, point } : null))
+                    setPlacement((current) =>
+                      current ? { ...current, point } : null,
+                    )
                   }
                 />
-              ))}
-            </div>
-            {device && chosenRoom ? (
-              <StatusDetails
-                device={device}
-                room={chosenRoom}
-                now={clock}
-                thresholds={map.data.thresholds}
-                canEdit={mayPlace}
-                placement={active}
-                pending={save.isPending}
-                onRemove={
-                  canEdit
-                    ? () => {
-                        if (
-                          window.confirm(
-                            `Gỡ thiết bị “${device.name}” khỏi phòng “${chosenRoom.name}”?`,
-                          )
-                        )
-                          save.mutate(
-                            {
-                              path: `/spaces/devices/${device.id}/room`,
-                              body: { room_id: null, expected_room_id: chosenRoom.id },
-                            },
-                            {
-                              onSuccess: () =>
-                                setSelected((current) => (current === device.id ? null : current)),
-                            },
-                          );
-                      }
-                    : undefined
-                }
-                onStart={() => {
-                  save.reset();
-                  setPlacement({
-                    version: chosenRoom.layout_version,
-                    deviceId: device.id,
-                    roomId: chosenRoom.id,
-                    point: null,
-                  });
-                }}
-                onCancel={() => {
-                  save.reset();
-                  setPlacement(null);
-                }}
-                onSave={(point) =>
-                  save.mutate({
-                    path: `/spaces/devices/${device.id}/position`,
-                    body: { room_id: chosenRoom.id, layout_version: active?.version, ...point },
-                  })
-                }
-              />
-            ) : (
+                {device && chosenRoom?.id === room.id ? (
+                  <StatusDetails
+                    device={device}
+                    focusedIncident={focusedIncident}
+                    room={chosenRoom}
+                    now={clock}
+                    thresholds={map.data.thresholds}
+                    canEdit={mayPlace}
+                    placement={active}
+                    pending={save.isPending}
+                    onRemove={
+                      canEdit
+                        ? () => {
+                            if (
+                              window.confirm(
+                                `Gỡ thiết bị “${device.name}” khỏi phòng “${chosenRoom.name}”?`,
+                              )
+                            )
+                              save.mutate(
+                                {
+                                  path: `/spaces/devices/${device.id}/room`,
+                                  body: {
+                                    room_id: null,
+                                    expected_room_id: chosenRoom.id,
+                                  },
+                                },
+                                {
+                                  onSuccess: () =>
+                                    setSelected((current) =>
+                                      current === device.id ? null : current,
+                                    ),
+                                },
+                              );
+                          }
+                        : undefined
+                    }
+                    onStart={() => {
+                      save.reset();
+                      setPlacement({
+                        version: chosenRoom.layout_version,
+                        deviceId: device.id,
+                        roomId: chosenRoom.id,
+                        point: null,
+                      });
+                    }}
+                    onCancel={() => {
+                      save.reset();
+                      setPlacement(null);
+                    }}
+                    onSave={(point) =>
+                      save.mutate({
+                        path: `/spaces/devices/${device.id}/position`,
+                        body: {
+                          room_id: chosenRoom.id,
+                          layout_version: active?.version,
+                          ...point,
+                        },
+                      })
+                    }
+                  />
+                ) : null}
+              </Fragment>
+            ))}
+            {!device ? (
               <aside className="ag-map-detail ag-map-empty-detail">
-                <MapPin size={21} />
+                <MapPin size={21} aria-hidden="true" />
                 <p>Chọn một thiết bị để xem số đo và lý do đổi màu.</p>
               </aside>
-            )}
+            ) : null}
           </div>
+
           <details className="ag-map-thresholds">
             <summary>Ngưỡng màu trên sơ đồ</summary>
             <p>
-              Vàng khi nhiệt độ ≥ {map.data.thresholds.temperature_c} °C hoặc độ ẩm ≥{' '}
-              {map.data.thresholds.humidity_pct} %RH. Ngưỡng này chỉ dùng để hiển thị sơ đồ.
+              Vàng khi nhiệt độ ≥ {map.data.thresholds.temperature_c} °C hoặc độ
+              ẩm ≥ {map.data.thresholds.humidity_pct} %RH. Ngưỡng này chỉ dùng
+              để hiển thị sơ đồ.
             </p>
             {canEdit && !area.archived_at ? (
               <form

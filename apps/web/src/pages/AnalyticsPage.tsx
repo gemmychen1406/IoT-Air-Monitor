@@ -56,7 +56,13 @@ function Summary({ stats, unit }: { stats: Stats; unit: string }) {
     </div>
   );
 }
-export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
+export default function AnalyticsPage({
+  devices,
+  embedded = false,
+}: {
+  devices: DeviceView[];
+  embedded?: boolean;
+}) {
   const [deviceId, setDeviceId] = useState('');
   const [draft, setDraft] = useState(initialRange);
   const [filters, setFilters] = useState(initialRange);
@@ -101,9 +107,15 @@ export default function AnalyticsPage({ devices }: { devices: DeviceView[] }) {
   const result = analytics.data;
   return (
     <>
-      <PageTitle title="Analytics & lịch sử">
-        <p>Xem lại số đo theo thời gian và xuất file CSV (tối đa 90 ngày).</p>
-      </PageTitle>
+      {embedded ? (
+        <p className="notice">
+          Xem lại số đo theo thời gian và xuất file CSV (tối đa 90 ngày).
+        </p>
+      ) : (
+        <PageTitle title="Analytics & lịch sử">
+          <p>Xem lại số đo theo thời gian và xuất file CSV (tối đa 90 ngày).</p>
+        </PageTitle>
+      )}
       {!selected ? (
         <div className="panel empty">Chưa có thiết bị để phân tích.</div>
       ) : (

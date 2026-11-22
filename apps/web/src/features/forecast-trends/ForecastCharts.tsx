@@ -6,6 +6,7 @@ import {
 import { FORECAST_CONFIG as CFG } from './config.js';
 import type { ForecastResult, LagCorrelationPoint, Measure, MinuteReading } from './types.js';
 import { forecastTimeline, trimEmptyStart } from './chartTimeline.js';
+import { predictionYAxisDomain } from './predictionAxis.js';
 
 const colors = { temperature: '#f59e0b', humidity: '#38bdf8' };
 const names = { temperature: 'Nhiệt độ', humidity: 'Độ ẩm' };
@@ -61,13 +62,14 @@ export function PredictionChart({ points, metric, result, replay = false }: {
   const timeline = forecastTimeline(points, metric, prediction, replay);
   if (!timeline) return <EmptyChart description="Chưa có mốc thời gian dự báo hợp lệ." />;
   const { origin, forecastEnd, ticks, data } = timeline;
+  const domain = predictionYAxisDomain(data, metric);
   return (
     <div className="ft-chart ft-chart-prediction" role="img" aria-label={replay ? 'So sánh dự báo hồi cứu với phép đo đã ghi nhận' : 'So sánh số đo và dự báo tương lai'}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 15, right: 7, bottom: 10, left: -10 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="timestamp" type="number" domain={[origin, forecastEnd]} ticks={ticks} interval="preserveStartEnd" allowDataOverflow scale="time" tickFormatter={asTime} stroke={axisColor} tick={{ fontSize: 11 }} minTickGap={24} />
-          <YAxis domain={[0, metric === 'humidity' ? 100 : 'auto']} width={44} stroke={axisColor} tick={{ fontSize: 11 }} />
+          <YAxis domain={domain} allowDataOverflow width={48} stroke={axisColor} tick={{ fontSize: 11 }} />
           <Tooltip labelFormatter={tooltipLabel} formatter={(value: unknown, name: unknown): [string, string] => [typeof value === 'number' ? `${value.toFixed(2)} ${units[metric]}` : '—', String(name)]} contentStyle={tooltipStyle} />
           <Legend />
           <Line dataKey="actual" type="linear" name={replay ? `${names[metric]} đã đo` : `${names[metric]} hiện tại`} stroke={colors[metric]} strokeWidth={2.6} dot={replay ? false : { r: 4 }} connectNulls={false} isAnimationActive={false} />
@@ -78,8 +80,8 @@ export function PredictionChart({ points, metric, result, replay = false }: {
   );
 }
 
-const roomColors = ['#f59e0b', '#38bdf8', '#a78bfa', '#34d399'];
-/** Same minute timeline for up to four rooms, using only histories passed by caller. */
+const roomColors = ['#f59e0b', '#38bdf8', '#a78bfa', '#34d399', '#fb7185', '#f472b6', '#22d3ee', '#c084fc', '#84cc16'];
+/** Same minute timeline for up to nine stations, using only histories passed by caller. */
 export function RoomComparisonChart({ rooms, metric }: {
   rooms: readonly { id: string; name: string; points: readonly MinuteReading[] }[];
   metric: Measure;
@@ -101,7 +103,7 @@ export function RoomComparisonChart({ rooms, metric }: {
   const hi = Math.max(...validValues);
   const pad = metric === 'temperature' ? Math.max(2, (hi - lo) * 0.2) : Math.max(6, (hi - lo) * 0.2);
   const domain: [number, number] = [Math.max(metric === 'humidity' ? 0 : -40, Math.floor(lo - pad)), Math.min(metric === 'humidity' ? 100 : 125, Math.ceil(hi + pad))];
-  return <div className="ft-chart ft-chart-large" role="img" aria-label="Biểu đồ nhiều phòng theo cùng mốc thời gian">
+  return <div className={`ft-chart ft-chart-large ${rooms.length > 4 ? 'ft-chart-many' : ''}`} role="img" aria-label="Biểu đồ nhiều trạm theo cùng mốc thời gian">
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={tail} margin={{ top: 12, right: 8, bottom: 6, left: -10 }}>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 6" vertical={false} />

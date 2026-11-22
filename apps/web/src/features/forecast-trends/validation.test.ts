@@ -22,6 +22,20 @@ describe('walk-forward backtesting', () => {
     const result = walkForward(points, 'temperature', 5);
     expect(result[0]!.skipped).toBeGreaterThan(0);
   });
+  it('uses a common set of recent completed targets and caps the window at 20 pairs', () => {
+    const points = series(Array.from({ length: 100 }, (_, i) => 20 + i * 0.1));
+    const latest = points.at(-1)!.timestamp;
+    const rows = walkForward(points, 'temperature', 15, undefined, {
+      minTargetAt: latest - 20 * 60_000,
+      maxPairs: 20,
+    });
+    expect(rows.every(row => row.pairs === 20 && row.horizon === 15)).toBe(true);
+    const none = walkForward(points, 'temperature', 15, undefined, {
+      minTargetAt: latest + 60_000, maxPairs: 20,
+    });
+    expect(none.every(row => row.pairs === 0 && row.mae === null)).toBe(true);
+  });
+
   it('does not count future readings as training', () => {
     const points = series(Array.from({ length: 50 }, (_, i) => i < 25 ? 20 + i : 300 - i * 3));
     const result = walkForward(points, 'temperature', 5);

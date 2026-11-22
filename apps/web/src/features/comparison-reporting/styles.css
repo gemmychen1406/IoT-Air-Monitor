@@ -381,6 +381,7 @@
   }
   .cr-report-charts section,
   .cr-report-stats section,
+  .cr-report-summary,
   .cr-report > header,
   .cr-report footer {
     break-inside: avoid;
@@ -405,4 +406,61 @@
     size: A4;
     margin: 12mm;
   }
+}
+
+/* Tom tat de hieu cua bao cao */
+.cr-report-summary {
+  margin: 1.25rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid #d5dde6;
+  border-left: 6px solid #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.cr-report-summary.tone-good {
+  border-left-color: #118c75;
+}
+.cr-report-summary.tone-watch {
+  border-left-color: #d97706;
+}
+.cr-report-summary.tone-alert {
+  border-left-color: #dc2626;
+}
+.cr-report-summary h2,
+.cr-report-summary h3 {
+  margin: 0 0 0.5rem;
+}
+.cr-summary-headline {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.cr-report-summary dl {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+.cr-report-summary dl > div {
+  padding-left: 0.75rem;
+  border-left: 3px solid #cbd5e1;
+}
+.cr-report-summary dl > .tone-good {
+  border-left-color: #118c75;
+}
+.cr-report-summary dl > .tone-watch {
+  border-left-color: #d97706;
+}
+.cr-report-summary dl > .tone-alert {
+  border-left-color: #dc2626;
+}
+.cr-report-summary dt {
+  font-weight: 600;
+}
+.cr-report-summary dd {
+  margin: 0.15rem 0 0;
+  line-height: 1.5;
+}
+.cr-report-summary ul {
+  margin: 0;
+  padding-left: 1.25rem;
 }

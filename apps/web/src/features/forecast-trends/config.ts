@@ -7,6 +7,11 @@ export const FORECAST_CONFIG = {
   chartMinutes: 60,
   movingAverageMinutes: 3,
   rapidChangeMinutes: 3,
+  // Minimum consecutive valid minute buckets and total change for a DHT11 notice.
+  dhtChangeMinMinutes: 6,
+  dhtChangeMaxMinutes: 7,
+  temperatureChangeAmplitude: 1.0,
+  humidityChangeAmplitude: 3.5,
   staleAfterMs: 300_000,
   temperatureStableSlope: 0.03,
   humidityStableSlope: 0.15,

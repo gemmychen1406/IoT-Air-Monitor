@@ -158,6 +158,38 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+.sensor-meaning {
+  margin-top: 1rem;
+  padding: 1rem;
+}
+.sensor-meaning summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+.sensor-meaning[open] summary {
+  margin-bottom: 0.9rem;
+}
+.sensor-meaning dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+.sensor-meaning dt {
+  font-weight: 700;
+}
+.sensor-meaning dd {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+}
+.sensor-meaning p {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.92em;
+}
 .badge {
   display: inline-flex;
   align-items: center;
@@ -314,7 +346,7 @@ nav a:hover {
 .content {
   max-width: 1580px;
   margin: auto;
-  padding: 36px 34px 0;
+  padding: 36px 34px 56px;
 }
 .page-title {
   display: flex;
@@ -734,7 +766,7 @@ footer {
     padding: 0 22px;
   }
   .content {
-    padding: 28px 22px 0;
+    padding: 28px 22px 48px;
   }
   .topbar-actions {
     margin-left: auto;
@@ -743,18 +775,6 @@ footer {
 @media (max-width: 760px) {
   .app-layout {
     display: block;
-  }
-  .sidebar {
-    position: static;
-    height: auto;
-    width: 100%;
-    padding: 15px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .sidebar .brand {
-    margin: 0 0 18px;
-    font-size: 20px;
   }
   nav {
     flex-direction: row;
@@ -787,7 +807,7 @@ footer {
     font-size: 10px;
   }
   .content {
-    padding: 25px 16px 0;
+    padding: 25px 16px 40px;
   }
   .page-title {
     align-items: flex-start;
@@ -981,13 +1001,6 @@ textarea {
 
 .nav-group { display: grid; gap: .15rem; }
 .nav-group .sidebar-label { margin: .6rem 0 .1rem; }
-.sidebar { overflow-y: auto; }
-@media (max-width: 760px) {
-  .sidebar .nav-group { grid-template-rows: auto auto; grid-auto-flow: column; gap: 0; flex: none; }
-  .sidebar .nav-group .sidebar-label { display: block; grid-column: 1 / -1; margin: 0 .6rem; }
-  .sidebar .nav-group a { grid-row: 2; }
-  .sidebar nav > a { align-self: end; }
-}
 
 .settings-column { display:grid; grid-template-columns:minmax(0,1fr); width:min(100%,800px); gap:16px; }
 .settings-column > section { margin:0; width:100%; }

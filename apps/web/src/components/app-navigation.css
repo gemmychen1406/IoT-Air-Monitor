@@ -1,0 +1,138 @@
+﻿.app-layout[data-sidebar-open='false'] > .sidebar {
+  display: none;
+}
+
+.app-layout[data-sidebar-open='false'] > .workspace {
+  margin-left: 0;
+  width: 100%;
+}
+
+.app-layout .app-shell-topbar {
+  justify-content: space-between;
+}
+
+.app-nav-topbar-start,
+.app-nav-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-nav-wordmark {
+  font-weight: 650;
+}
+
+.app-layout[data-sidebar-open='true'] .app-nav-wordmark,
+.app-layout .app-nav-mobile-toggle {
+  display: none;
+}
+
+.app-nav-icon-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 9px;
+  color: var(--text);
+}
+
+.app-nav-icon-button:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+
+.app-layout .app-nav-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(20rem, calc(100% - 3rem));
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0 16px 18px;
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 18px 0 42px #0004;
+}
+
+.app-nav-drawer::backdrop {
+  background: #070d18a8;
+}
+
+body:has(.app-nav-drawer[open]) {
+  overflow: hidden;
+}
+
+.app-nav-drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-block: 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-nav-drawer-header .brand {
+  margin: 0;
+  font-size: 20px;
+}
+
+@media (max-width: 760px) {
+  .app-layout > .sidebar,
+  .app-layout .app-nav-desktop-toggle {
+    display: none;
+  }
+
+  .app-layout .app-nav-mobile-toggle {
+    display: inline-flex;
+  }
+
+  .app-layout[data-sidebar-open] .app-nav-wordmark {
+    display: inline;
+  }
+
+  .app-layout .app-shell-topbar {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+
+  .app-shell-topbar .topbar-actions {
+    width: auto;
+    gap: 6px;
+  }
+
+  .app-shell-topbar .topbar-actions .badge {
+    white-space: nowrap;
+  }
+
+  .app-nav-drawer .app-shell-navigation {
+    flex-direction: column;
+    gap: 7px;
+    overflow: visible;
+  }
+
+  .app-nav-drawer .app-shell-navigation a {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+    gap: 10px;
+    white-space: normal;
+  }
+
+  .app-nav-drawer .app-shell-navigation a svg {
+    width: 18px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-layout[data-sidebar-open] .app-nav-wordmark {
+    display: none;
+  }
+}

@@ -42,3 +42,33 @@
 }
 .ag-incident-notice-summary strong { font-size: 17px; }
 .ag-incident-notice button { align-self: center; margin-inline-end: .75rem; min-height: 44px; }
+
+.panel.ag-incident-support {
+  --support-accent: #a33b20;
+  --accent: var(--support-accent);
+  border-color: color-mix(in srgb, var(--support-accent) 35%, var(--border));
+  border-inline-start: 4px solid var(--support-accent);
+  background: color-mix(in srgb, var(--support-accent) 9%, var(--panel));
+}
+
+:root:not([data-theme='light']) .panel.ag-incident-support {
+  --support-accent: #ff9a75;
+}
+
+.ag-incident-support .ag-support-actions .ag-support-call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #c4502d;
+  padding: 9px 13px;
+  background: linear-gradient(135deg, #a82f20, #934013);
+  color: #fff;
+  font-weight: 650;
+}
+
+.ag-incident-support .ag-support-actions .ag-support-call:hover {
+  background: #882c18;
+}

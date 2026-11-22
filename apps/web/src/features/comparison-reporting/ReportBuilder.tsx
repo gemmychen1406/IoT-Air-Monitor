@@ -6,6 +6,7 @@ import { AdminAnalysisPanel } from "./AdminAnalysisPanel.js";
 import { RangeFields } from "./RangeFields.js";
 import { ReportChart } from "./ReportChart.js";
 import { reportComment, reportHasData } from "./report-utils.js";
+import { buildSummary } from "./summary.js";
 import {
   METRICS,
   METRIC_LABEL,
@@ -101,6 +102,8 @@ export function ReportBuilder({
       setLoading(false);
     }
   }
+  const summary = report ? buildSummary(report) : null;
+  const bucketWord = { minute: "phút", hour: "giờ", day: "ngày" };
   async function printReport() {
     if (document.fonts?.ready) await document.fonts.ready;
     await new Promise<void>((resolve) =>
@@ -203,6 +206,30 @@ export function ReportBuilder({
                 : "Thiết bị thật"}
             </p>
           </div>
+          {summary ? (
+            <section
+              className={`cr-report-summary tone-${summary.tone}`}
+              aria-label="Tóm tắt dễ hiểu"
+            >
+              <h2>Tóm tắt dễ hiểu</h2>
+              <p className="cr-summary-headline">{summary.headline}</p>
+              <dl>
+                {summary.items.map((item) => (
+                  <div key={item.id} className={`tone-${item.tone}`}>
+                    <dt>{item.title}</dt>
+                    <dd>{item.text}</dd>
+                  </div>
+                ))}
+              </dl>
+              <h3>Gợi ý</h3>
+              <ul>
+                {summary.advice.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          <h2>Chi tiết từng chỉ số</h2>
           <div className="cr-report-stats">
             {METRICS.map((metric) => {
               const data = report.analytics[metric];
@@ -240,6 +267,12 @@ export function ReportBuilder({
           </div>
           <section className="cr-report-quality">
             <h2>Chất lượng dữ liệu</h2>
+            <p className="muted">
+              Báo cáo chia thời gian thành từng{" "}
+              {bucketWord[report.range.bucket]}. “Khoảng có dữ liệu” là số{" "}
+              {bucketWord[report.range.bucket]} mà thiết bị gửi được ít nhất một
+              số đo hợp lệ.
+            </p>
             <div className="cr-quality-grid">
               {METRICS.map((metric) => {
                 const data = report.analytics[metric];
@@ -247,16 +280,16 @@ export function ReportBuilder({
                 return (
                   <div key={metric}>
                     <b>{METRIC_LABEL[metric]}</b>
-                    <span>Hợp lệ: {data?.summary.valid_count ?? 0}</span>
+                    <span>Số đo hợp lệ: {data?.summary.valid_count ?? 0}</span>
                     <span>
-                      Không hợp lệ: {data?.summary.invalid_count ?? 0}
+                      Số đo bị loại: {data?.summary.invalid_count ?? 0}
                     </span>
                     <span>
-                      Bucket: {quality.present}/{quality.expected} · thiếu{" "}
-                      {quality.missing}
+                      Khoảng có dữ liệu: {quality.present}/{quality.expected} ·
+                      thiếu {quality.missing}
                     </span>
                     <span>
-                      Độ phủ:{" "}
+                      Tỷ lệ có dữ liệu:{" "}
                       {quality.percent === null
                         ? "Không xác định"
                         : `${quality.percent.toFixed(1)}%`}

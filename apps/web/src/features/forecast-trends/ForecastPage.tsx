@@ -1,8 +1,8 @@
 // [FORECAST - FILE MOI] Giao dien rieng cua module Phan tich xu huong & Du bao.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
-import { Activity, ArrowRight, ChartNoAxesCombined, TrendingUp, House, Info, Radio, TriangleAlert, FlaskConical, Database, History, ChevronRight, Gauge } from 'lucide-react';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Activity, TrendingUp, House, Info, Radio, TriangleAlert, Waves, History } from 'lucide-react';
 import { Link } from 'react-router';
 import type { DeviceView, SpacesView } from '@iot/contracts';
 import { api } from '../../lib/api.js';
@@ -10,42 +10,47 @@ import { latestDhtSnapshot } from './latestDht.js';
 import { formatSensorValue } from '../../lib/sensor-display.js';
 import { FORECAST_CONFIG as CFG } from './config.js';
 import { fetchForecastHistory, type HistoryResponse } from './history.js';
-import { ForecastValidationPanel } from './ForecastValidationPanel.js';
-import { evaluateDhtChange } from './dhtAdvisory.js';
+import { evaluateDhtAssessment } from './dhtAdvisory.js';
 import { analyzeTrend } from './timeseries.js';
-import { forecastBoth } from './forecasting.js';
+import { forecastMeasure } from './forecasting.js';
+import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './modelSelection.js';
 import { evaluateAdvisory } from './advisory.js';
-import { analyzeAllRoomPairs, lagCorrelationProfile } from './interRoom.js';
-import { historicalReplay } from './replay.js';
-import { buildDemoScenario, DEMO_ROOMS } from './demoScenario.js';
-import type { DemoRoomId, DemoEffect } from './demoScenario.js';
-import { DEFAULT_DOORS } from './microclimate.js';
-import type { DoorStates } from './microclimate.js';
-import { MicroclimateScenarioPanel, MoistureIndicators } from './MicroclimateScenarioPanel.js';
-import { RoomImpactTimeline } from './RoomImpactTimeline.js';
-import { CombinedTrendChart, LagCorrelationChart, PredictionChart, RoomComparisonChart } from './ForecastCharts.js';
-import MonitoringChart from '../../pages/MonitoringChart.js';
-import type { ForecastModel, Measure, MinuteReading, TrendResult } from './types.js';
+import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
+import { PredictionChart } from './ForecastCharts.js';
+import ForecastDhtChart from './ForecastDhtChart.js';
+import type { MinuteReading, TrendResult } from './types.js';
+import { stationDisplayName } from './stationDisplay.js';
+import { SpreadScenarioPanel } from './SpreadScenarioPanel.js';
+import { classifySpreadRoom } from './spreadForecast.js';
 import './forecast-trends.css';
 
 const TABS = [
-  { id: 'trend', label: 'Phân tích xu hướng', icon: ChartNoAxesCombined },
+  { id: 'trend', label: 'Giám sát biến động', icon: Waves },
   { id: 'forecast', label: 'Dự báo 15–30 phút', icon: TrendingUp },
-  { id: 'validation', label: 'Kiểm chứng dự báo', icon: Gauge },
-  { id: 'rooms', label: 'Ảnh hưởng liên khu vực', icon: House },
+  { id: 'rooms', label: 'Dự báo lan truyền', icon: House },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 const trendNames = {
   increasing: 'Đang tăng', decreasing: 'Đang giảm', stable: 'Ổn định',
   insufficient: 'Chưa đủ dữ liệu', stale: 'Dữ liệu cũ',
 };
-const models: { id: ForecastModel; label: string }[] = [
-  { id: 'naive', label: 'Naive' }, { id: 'linear', label: 'Hồi quy tuyến tính' }, { id: 'holt', label: 'Holt' },
+const models: { id: ForecastSelection; label: string }[] = [
+  { id: 'auto', label: 'Tự động (Khuyên dùng)' },
+  { id: 'naive', label: MODEL_LABELS.naive },
+  { id: 'linear', label: MODEL_LABELS.linear },
+  { id: 'holt', label: MODEL_LABELS.holt },
 ];
 const fmt = (value: number | null | undefined, digits = 1) => value === null || value === undefined ? '—' : value.toLocaleString('vi-VN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const fmtTime = (time: number | null | undefined) => time === null || time === undefined ? 'Chưa có' : new Date(time).toLocaleString('vi-VN');
-const roomName = (device: DeviceView) => device.location?.trim() || device.name;
 const emptyPoints: MinuteReading[] = [];
+// Chi hien muc chenh lech tren bieu do khi co du bao hop le.
+function forecastDeltaText(item: ReturnType<typeof forecastMeasure>, unit: string, horizon: 15 | 30) {
+  const last = item.points.at(-1);
+  if (item.status !== 'eligible' || item.current === null || !last) return null;
+  const delta = last.value - item.current;
+  return `${delta >= 0 ? '+' : ''}${fmt(delta)} ${unit} sau ${horizon} phút`;
+}
+
 
 function CurrentCard({ title, metric, unit, trend, latestValue, freshness, historical }: {
   title: string; metric: 'temperature_c' | 'humidity_pct'; unit: string;
@@ -64,53 +69,66 @@ function CurrentCard({ title, metric, unit, trend, latestValue, freshness, histo
 
 export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [tab, setTab] = useState<Tab>('trend');
-  const [mode, setMode] = useState<'live' | 'demo'>('live');
   const [selectedId, setSelectedId] = useState('');
-  const [roomSelection, setRoomSelection] = useState<string[] | null>(null);
-  const [model, setModel] = useState<ForecastModel>('holt');
+  const [roomSelection, setRoomSelection] = useState<string[]>([]);
+  const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
-  const [showAverage, setShowAverage] = useState(false);
-  const [demoSource, setDemoSource] = useState<DemoRoomId>('demo-kitchen');
-  const [demoEffect, setDemoEffect] = useState<DemoEffect>('temperature');
-  const [demoDoors, setDemoDoors] = useState<DoorStates>({ ...DEFAULT_DOORS });
-  const [roomMetric, setRoomMetric] = useState<Measure>('temperature');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const queryClient = useQueryClient();
+  const latestSignalRef = useRef<{ deviceId: string; latestId: string | null; refreshedAt: number } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
 
-  const demo = useMemo(() => buildDemoScenario(nowMs, demoSource, demoEffect, demoDoors), [nowMs, demoSource, demoEffect, demoDoors]);
-  const activeDevices = mode === 'demo' ? demo.devices : devices.filter((device) => !device.archived_at);
-  const spacesQuery = useQuery({ queryKey: ['monitoring-spaces'], queryFn: () => api<SpacesView>('/spaces'), enabled: mode === 'live', staleTime: 60_000 });
+  const activeDevices = devices.filter((device) => !device.archived_at);
+  const maxComparison = Math.min(9, activeDevices.length);
+  const spacesQuery = useQuery({ queryKey: ['monitoring-spaces'], queryFn: () => api<SpacesView>('/spaces'), staleTime: 60_000 });
   const deviceRoomLabel = (device: DeviceView) => {
-    if (mode === 'demo') return roomName(device);
     const assigned = spacesQuery.data?.devices.find((item) => item.id === device.id);
     const room = assigned?.room_id ? spacesQuery.data?.rooms.find((item) => item.id === assigned.room_id) : null;
-    return room?.name ?? roomName(device);
+    return stationDisplayName(device.name, room?.name ?? device.location ?? null);
   };
   const selected = activeDevices.find((device) => device.id === selectedId) ?? activeDevices[0];
-  const roomIds = roomSelection === null
-    ? activeDevices.slice(0, 4).map((device) => device.id)
-    : roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
-  const queryIds = mode === 'demo' ? [] : tab === 'rooms'
-    ? [...new Set([...roomIds, ...(selected ? [selected.id] : [])])]
-    : selected ? [selected.id] : [];
-  const fromMs = Math.floor(nowMs / CFG.minuteMs) * CFG.minuteMs - CFG.historyMinutes * CFG.minuteMs;
-  const toMs = Math.ceil(nowMs / CFG.minuteMs) * CFG.minuteMs;
+  // No auto-selected stations: users may choose none, one, or any 2..9 devices.
+  const roomIds = roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
+  const queryIds = selected ? [selected.id] : [];
   const historyQueries = useQueries({
     queries: queryIds.map((deviceId) => ({
       queryKey: ['forecast-history', deviceId],
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchForecastHistory(deviceId, fromMs, toMs, signal),
-      staleTime: 30_000,
+      // Compute the rolling history window on EVERY request, not at page render.
+      queryFn: ({ signal }: { signal: AbortSignal }) => {
+        const requestNow = Date.now();
+        const fromMs = Math.floor(requestNow / CFG.minuteMs) * CFG.minuteMs - CFG.historyMinutes * CFG.minuteMs;
+        const toMs = Math.ceil(requestNow / CFG.minuteMs) * CFG.minuteMs;
+        return fetchForecastHistory(deviceId, fromMs, toMs, signal);
+      },
+      staleTime: 15_000,
       refetchInterval: 45_000,
     })),
   });
+  // The device list can refresh approximately every 5 s. Invalidate Forecast
+  // history on a NEW reading ID, but no more often than every 15 s per device.
+  // The initial query for a new device starts automatically via useQueries.
+  useEffect(() => {
+    const deviceId = selected?.id;
+    const latestId = selected?.latest?.id ?? null;
+    if (!deviceId) { latestSignalRef.current = null; return; }
+    const previous = latestSignalRef.current;
+    if (!previous || previous.deviceId !== deviceId) {
+      latestSignalRef.current = { deviceId, latestId, refreshedAt: Date.now() };
+      return;
+    }
+    if (!latestId || latestId === previous.latestId) return;
+    const currentTime = Date.now();
+    latestSignalRef.current = { ...previous, latestId };
+    if (currentTime - previous.refreshedAt < 15_000) return;
+    latestSignalRef.current.refreshedAt = currentTime;
+    void queryClient.invalidateQueries({ queryKey: ['forecast-history', deviceId], exact: true });
+  }, [selected?.id, selected?.latest?.id, queryClient]);
   const queryFor = (id: string) => historyQueries[queryIds.indexOf(id)];
-  const dataFor = (id: string): HistoryResponse | null => mode === 'demo'
-    ? demo.histories[id] ? { history: demo.histories[id]!, partial: false, historicalFallback: false, fetched: demo.histories[id]!.validSamples } : null
-    : queryFor(id)?.data ?? null;
-  const selectedQuery = mode === 'live' && selected ? queryFor(selected.id) : null;
+  const dataFor = (id: string): HistoryResponse | null => queryFor(id)?.data ?? null;
+  const selectedQuery = selected ? queryFor(selected.id) : null;
   const selectedData = selected ? dataFor(selected.id) : null;
   const selectedHistory = selectedData?.history;
   const points = selectedHistory?.points ?? emptyPoints;
@@ -119,68 +137,57 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const dataStale = latestSampleAt !== null && latestSampleAt !== undefined && nowMs - latestSampleAt > CFG.staleAfterMs;
   const temperatureTrend = useMemo(() => analyzeTrend(points, 'temperature', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
-  const forecast = useMemo(() => forecastBoth(points, model, horizon, nowMs, latestSampleAt), [points, model, horizon, nowMs, latestSampleAt]);
-  const replay = useMemo(() => historicalReplay(points, model, horizon), [points, model, horizon]);
-  const useReplay = forecast.temperature.status !== 'eligible' && forecast.humidity.status !== 'eligible' && replay !== null;
-  const shownForecast = useReplay ? replay.forecast : forecast;
+  // Mỗi chỉ số có thể được chọn thuật toán khác nhau trên cùng mốc dự báo.
+  const selection = useMemo(() => ({
+    temperature: selectForecastModel(points, 'temperature', horizon, nowMs, latestSampleAt, model),
+    humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model),
+  }), [points, model, horizon, nowMs, latestSampleAt]);
+  const forecast = useMemo(() => ({
+    temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt),
+    humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt),
+  }), [points, selection, horizon, nowMs, latestSampleAt]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
-  const dhtNotices = useMemo(() => evaluateDhtChange(points, nowMs), [points, nowMs]);
-  // Historical chart is anchored at the last measurement, not the wall clock.
-  const recent = useMemo(() => points.filter((p) => p.timestamp >= (latestSampleAt ?? nowMs) - CFG.chartMinutes * CFG.minuteMs), [points, nowMs, latestSampleAt]);
-  const roomHistories = tab === 'rooms' ? roomIds.flatMap((id) => {
-    const response = dataFor(id);
-    return response ? [{ id, name: activeDevices.find((d) => d.id === id) ? deviceRoomLabel(activeDevices.find((d) => d.id === id)!) : 'Thiết bị', points: response.history.points }] : [];
-  }) : [];
-  const roomLag = tab === 'rooms' ? analyzeAllRoomPairs(roomHistories) : [];
-  const candidates = roomLag.filter((item) => item.status === 'candidate').sort((a, b) => (b.correlation ?? 0) - (a.correlation ?? 0));
-  const matchingCandidates = candidates.filter((item) => item.metric === roomMetric);
-  const nameFor = (id: string) => {
+  const dhtAssessment = useMemo(() => evaluateDhtAssessment(points, nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
+  const spreadStations = roomIds.flatMap((id) => {
     const device = activeDevices.find((d) => d.id === id);
-    return device ? deviceRoomLabel(device) : 'Thiết bị không khả dụng';
-  };
-  const bestPair = matchingCandidates[0] ?? roomLag
-    .filter((item) => item.metric === roomMetric)
-    .sort((a, b) => b.samplePairs - a.samplePairs)[0];
-  const sourceHistory = bestPair ? roomHistories.find((p) => p.id === bestPair.sourceId) : null;
-  const targetHistory = bestPair ? roomHistories.find((p) => p.id === bestPair.targetId) : null;
-  const profile = bestPair && sourceHistory && targetHistory
-    ? lagCorrelationProfile(sourceHistory.points, targetHistory.points, bestPair.metric) : [];
-  const switchMode = (nextMode: 'live' | 'demo') => {
-    setMode(nextMode); setSelectedId(''); setRoomSelection(null);
-  };
-
+    if (!device) return [];
+    const reading = device.latest;
+    const snapshot = latestDhtSnapshot(device, nowMs);
+    const stamp = reading?.payload.sampled_at ? Date.parse(reading.payload.sampled_at) : NaN;
+    const recent = device.status === 'online' && reading?.payload.time_quality === 'synced'
+      && Number.isFinite(stamp) && stamp <= nowMs + CFG.minuteMs
+      && nowMs - stamp <= CFG.staleAfterMs;
+    const roomId = spacesQuery.data?.devices.find(item => item.id === device.id)?.room_id;
+    const roomName = spacesQuery.data?.rooms.find(room => room.id === roomId)?.name;
+    return [{
+      id: device.id,
+      name: deviceRoomLabel(device),
+      room: classifySpreadRoom(roomName || device.location || device.name),
+      temperature: snapshot.temperature ?? 0,
+      humidity: snapshot.humidity ?? 0,
+      valid: Boolean(recent && snapshot.temperature !== null && snapshot.humidity !== null),
+      reason: recent ? snapshot.freshness : 'Dữ liệu không đồng bộ hoặc đã cũ',
+    }];
+  });
   return <div className="ft-page">
     <div className="page-title ft-title">
-      <div><h1>Phân tích xu hướng & Dự báo</h1><p>Theo dõi biến động, dự báo ngắn hạn và quan hệ nhiệt độ – độ ẩm giữa các khu vực.</p></div>
+      <div><h1>Giám sát & Dự báo</h1><p>Theo dõi nhiệt độ, độ ẩm và dự báo ảnh hưởng lan truyền giữa các trạm từ dữ liệu hệ thống.</p></div>
       {selected ? <label className="ft-device-select">Thiết bị / khu vực
         <select value={selected.id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedId(event.target.value)}>
-          {activeDevices.map((device) => <option value={device.id} key={device.id}>{deviceRoomLabel(device)}{deviceRoomLabel(device) === device.name ? '' : ` · ${device.name}`}{device.source_kind === 'simulator' ? ' (mô phỏng)' : ''}</option>)}
+          {activeDevices.map((device) => <option value={device.id} key={device.id}>{deviceRoomLabel(device)}{device.source_kind === 'simulator' ? ' (mô phỏng)' : ''}</option>)}
         </select>
       </label> : null}
     </div>
 
     <div className="ft-mode-bar" aria-label="Nguồn dữ liệu phân tích">
-      <div className="ft-mode-heading"><strong>Nguồn dữ liệu</strong><span>Trang phân tích dùng chung API và danh sách thiết bị với Monitoring.</span></div>
-      <div className="ft-mode-buttons">
-        <button type="button" className={mode === 'live' ? 'ft-mode-active' : ''} onClick={() => switchMode('live')} aria-pressed={mode === 'live'}><Database size={16} /> Dữ liệu hệ thống ({devices.filter((d) => !d.archived_at).length})</button>
-        <button type="button" className={mode === 'demo' ? 'ft-mode-active' : ''} onClick={() => switchMode('demo')} aria-pressed={mode === 'demo'}><FlaskConical size={16} /> Thử nghiệm 4 phòng</button>
-      </div>
+      <div className="ft-mode-heading"><strong>Dữ liệu hệ thống ({activeDevices.length} thiết bị)</strong><span>Dùng chung API và danh sách trạm với Giám sát trực tiếp.</span></div>
     </div>
 
-    {mode === 'demo'
-      ? <div className="ft-demo-banner" role="status"><FlaskConical size={19} /><div><strong>Chế độ mô phỏng thuật toán – 4 phòng</strong><p>Dữ liệu vi khí hậu được mô phỏng bằng cân bằng nhiệt và hơi ẩm giữa các phòng. Cửa và nguồn nhiệt/ẩm là giả định; không ghi vào API, không phải số đo thực.</p></div></div>
-      : <div className="ft-info"><Info size={17} /> Đang dùng dữ liệu thiết bị và phòng từ hệ thống nhóm. Hiện có {activeDevices.length} thiết bị; cần ít nhất hai thiết bị có chuỗi dữ liệu cùng thời gian để phân tích liên phòng.</div>}
-
-    {!selected ? <div className="panel ft-state">Chưa có thiết bị trong hệ thống. <Link to="/app/devices">Mở mục Thiết bị</Link> hoặc dùng chế độ thử nghiệm 4 phòng để xem chức năng.</div> : <>
+    {!selected ? <div className="panel ft-state">Chưa có thiết bị trong hệ thống. <Link to="/app/devices">Mở mục Thiết bị</Link>.</div> : <>
       <nav className="ft-tabs" aria-label="Chức năng phân tích và dự báo">
         {TABS.map(({ id, label, icon: Icon }) => <button key={id} type="button" className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17} />{label}</button>)}
       </nav>
-      {mode === 'live' && selected.source_kind === 'simulator' ? <div className="ft-note-inline"><Info size={15} /> Thiết bị đang chọn là Simulator của nhóm; số liệu được gửi qua API chung.</div> : null}
-      {tab === 'validation' ? <section className="panel ft-controls"><label>Mô hình dự báo
-          <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastModel)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
-        </label><label>Khoảng dự báo
-          <select value={horizon} onChange={(e: ChangeEvent<HTMLSelectElement>) => setHorizon(Number(e.target.value) as 15 | 30)}><option value={15}>15 phút</option><option value={30}>30 phút</option></select>
-        </label></section> : null}
+      {selected.source_kind === 'simulator' ? <div className="ft-note-inline"><Info size={15} /> Thiết bị đang chọn là Simulator của nhóm; số liệu được gửi qua API chung.</div> : null}
       {selectedQuery?.isPending ? <div role="status" className="panel ft-state">Đang tải lịch sử của thiết bị…</div> : null}
       {selectedQuery?.isError ? <div role="alert" className="notice error ft-state">Không tải được lịch sử: {selectedQuery.error.message} <button onClick={() => void selectedQuery.refetch()}>Thử lại</button></div> : null}
       {selectedData ? <>
@@ -195,105 +202,83 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
           </div>
           <MoistureIndicators temperature={live?.temperature ?? null} humidity={live?.humidity ?? null} />
           <section className="panel ft-dht-notices"><div className="ft-section-bar"><h2><Activity size={19}/> Nhận định biến động nhiệt độ và độ ẩm</h2></div>
-            {dhtNotices.length ? <div className="ft-notice-list">{dhtNotices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : <p className="ft-muted">Chưa ghi nhận biến động đủ nhanh trên dữ liệu mới, hoặc chưa đủ mẫu để đánh giá.</p>}
-            <p className="ft-muted">Nhận định được tính từ lịch sử nhiệt độ và độ ẩm; không xác nhận nguyên nhân biến động.</p>
+            <div role="status" className={`ft-dht-assessment ft-dht-assessment-${dhtAssessment.status}`}>
+              <strong>{dhtAssessment.status === 'stale' ? 'Dữ liệu cũ'
+                : dhtAssessment.status === 'insufficient' ? 'Chưa đủ mẫu'
+                : dhtAssessment.status === 'normal' ? 'Không có biến động bất thường'
+                : 'Có biến động liên tục cần theo dõi'}</strong>
+              <p>{dhtAssessment.status === 'stale'
+                ? 'Thiết bị đã ngừng gửi dữ liệu mới hơn 5 phút; tạm dừng đánh giá biến động hiện tại.'
+                : dhtAssessment.status === 'insufficient'
+                  ? `Chưa đủ dữ liệu liên tục (hiện có ${dhtAssessment.validMinutes}/${dhtAssessment.requiredMinutes} phút hợp lệ) để đánh giá biến động.`
+                  : dhtAssessment.status === 'normal'
+                    ? 'Không ghi nhận biến động bất thường: nhiệt độ và độ ẩm đang duy trì ổn định quanh mức nền.'
+                    : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
+            </div>
+            {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
           </section>
           <section className="panel ft-chart-panel ft-wide-panel">
-            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2><p className="ft-muted">{mode === 'live' ? '120 mẫu gần nhất · dùng đúng biểu đồ Giám sát trực tiếp của nhóm' : '60 phút mô phỏng gần nhất · bắt đầu từ mẫu có dữ liệu đầu tiên'}</p></div>
-              {mode === 'demo' ? <label className="ft-check"><input type="checkbox" checked={showAverage} onChange={(e: ChangeEvent<HTMLInputElement>) => setShowAverage(e.target.checked)} /> Đường làm mượt</label> : null}
+            <div className="ft-section-bar"><div><h2>Nhiệt độ & độ ẩm</h2></div>
             </div>
-            {mode === 'live' ? <MonitoringChart deviceId={selected.id} /> : <CombinedTrendChart points={recent} showAverage={showAverage} />}
+            <ForecastDhtChart deviceId={selected.id} />
           </section>
           {dataStale ? <p className="ft-muted">Biểu đồ và tốc độ biến đổi ở trên phản ánh dữ liệu lịch sử trước khi thiết bị ngừng gửi, không phải trạng thái hiện tại.</p> : null}
         </> : null}
-        {tab === 'validation' ? <ForecastValidationPanel history={points} horizon={horizon} model={model}/> : null}
         {tab === 'forecast' ? <>
           <section className="panel ft-controls"><label>Mô hình dự báo
-            <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastModel)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+            <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastSelection)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
           </label><label>Khoảng dự báo
             <select value={horizon} onChange={(e: ChangeEvent<HTMLSelectElement>) => setHorizon(Number(e.target.value) as 15 | 30)}><option value={15}>15 phút</option><option value={30}>30 phút</option></select>
-          </label><div className="ft-controls-caption">Hồi quy/Holt cần tối thiểu 5 phút có dữ liệu; dự báo mới chỉ hoạt động khi cảm biến còn cập nhật.</div></section>
-          {useReplay ? <div className="ft-demo-banner ft-replay-banner"><History size={19}/><div><strong>Đang xem dự báo hồi cứu – không phải dự báo thời gian thực</strong><p>Thiết bị đã ngừng gửi dữ liệu. Mô hình được chạy lại tại {fmtTime(replay.originTime)} để dự đoán tới {fmtTime(replay.targetTime)}, sau đó đối chiếu với số đo lịch sử đã ghi nhận.</p></div></div> : null}
-          {!useReplay && forecast.temperature.status !== 'eligible' && forecast.humidity.status !== 'eligible' ? <div className="ft-info"><Info size={16}/> {forecast.temperature.reason ?? 'Chưa đủ lịch sử để dự báo.'} Chưa có đủ dữ liệu để trình bày hồi cứu tại khoảng thời gian đã chọn.</div> : null}
+          </label><div className="ft-controls-caption">Dự báo tính từ mẫu đo mới nhất khi thiết bị đang cập nhật. Mốc 15/30 phút được tính sau mẫu đó, không phải kết quả đã đo.</div></section>
+          {forecast.temperature.status !== 'eligible' && forecast.humidity.status !== 'eligible'
+            ? <div className="ft-info"><Info size={16}/> {forecast.temperature.reason ?? 'Chưa đủ dữ liệu mới để dự báo tương lai.'} Không sử dụng dự báo hồi cứu thay thế.</div> : null}
           <div className="ft-two-cards">
             {(['temperature', 'humidity'] as const).map((metric) => {
-              const forecastItem = shownForecast[metric];
+              const forecastItem = forecast[metric];
+              const chosen = selection[metric];
               const last = forecastItem.points.at(-1);
               const unit = metric === 'temperature' ? '°C' : '%RH';
-              const observed = useReplay ? replay.actual[metric] : null;
-              return <article key={metric} className="ft-metric"><div className="ft-metric-heading"><span>{metric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'} {useReplay ? 'hồi cứu' : 'dự kiến'}</span><span className="ft-forecast-tag">{horizon} phút</span></div>
+              return <article key={metric} className="ft-metric"><div className="ft-metric-heading"><span>{metric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'} dự kiến</span><span className="ft-forecast-tag">Sau {horizon} phút</span></div>
                 <div className="ft-big-number">{fmt(last?.value)} <small>{unit}</small></div>
-                {forecastItem.status === 'eligible'
-                  ? <div className="ft-metric-bottom"><span>{useReplay ? `Đã đo: ${fmt(observed)} ${unit}` : `Thay đổi: ${last && forecastItem.current !== null ? `${last.value - forecastItem.current >= 0 ? '+' : ''}${fmt(last.value - forecastItem.current)} ${unit}` : '—'}`}</span>{useReplay && last && observed !== null ? <span>Độ lệch: {fmt(Math.abs(last.value - observed))} {unit}</span> : null}</div>
-                  : <p className="ft-warning">{forecastItem.reason}</p>}
+                <p className="ft-model-caption"><strong>Đang dùng: {MODEL_LABELS[chosen.model]}</strong></p>
+                <p className="ft-model-caption">{chosen.explanation}</p>
+                {forecastItem.status === 'eligible' && last
+                  ? <div className="ft-metric-bottom"><span>Thay đổi dự kiến: {forecastItem.current !== null ? `${last.value - forecastItem.current >= 0 ? '+' : ''}${fmt(last.value - forecastItem.current)} ${unit}` : '—'}</span><span>Mốc đo đầu: {fmtTime(forecastItem.lastSampleAt)}</span></div>
+                  : <p className="ft-warning">{forecastItem.reason ?? 'Chưa đủ dữ liệu.'}</p>}
               </article>;
             })}
           </div>
-          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>{useReplay ? 'Đối chiếu dự báo với nhiệt độ đã đo' : 'Dự báo nhiệt độ'}</h2><span className="ft-muted">{useReplay ? 'Bắt đầu tại mốc dự báo lịch sử; các điểm sau là dự báo và số đo đối chiếu' : 'Bắt đầu từ mẫu hiện tại, tiếp theo là các mốc +5, +10, +15/30 phút'}</span></div>
-            <PredictionChart points={points} metric="temperature" result={shownForecast} replay={useReplay} /></section>
-          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>{useReplay ? 'Đối chiếu dự báo với độ ẩm đã đo' : 'Dự báo độ ẩm'}</h2><span className="ft-muted">{useReplay ? 'Bắt đầu tại mốc dự báo lịch sử; các điểm sau là dự báo và số đo đối chiếu' : 'Bắt đầu từ mẫu hiện tại, tiếp theo là các mốc +5, +10, +15/30 phút'}</span></div>
-            <PredictionChart points={points} metric="humidity" result={shownForecast} replay={useReplay} /></section>
-          <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {useReplay ? 'Nhận định lịch sử' : advisory.title}</h3>
-            {useReplay ? <p>Đây là kiểm tra sai số trên dữ liệu đã ghi nhận, không đánh giá tình trạng môi trường ở thời điểm hiện tại.</p>
-              : advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}
-            <p className="ft-muted">Nhận định và dự báo chỉ tham khảo xu hướng nhiệt độ, độ ẩm; không thay thế kiểm tra điều kiện môi trường thực tế.</p>
+          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo nhiệt độ</h2><span className="ft-muted">{forecastDeltaText(forecast.temperature, '°C', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
+            <PredictionChart points={points} metric="temperature" result={forecast} /></section>
+          <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo độ ẩm</h2><span className="ft-muted">{forecastDeltaText(forecast.humidity, '%RH', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
+            <PredictionChart points={points} metric="humidity" result={forecast} /></section>
+          <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>
+            {advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail.replace('biến đổi nhanh', 'biến đổi liên tục')}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}
+            <p className="ft-muted">Đây là ước tính thống kê, không phải số đo tương lai hay cảnh báo nguy hiểm đã xác nhận.</p>
           </section>
-          {dhtNotices.length && !useReplay ? <section className="panel ft-dht-notices"><h3>Biến động nhanh ghi nhận</h3><ul>{dhtNotices.map((notice,index) => <li key={`${notice.title}:${index}`}><strong>{notice.title}:</strong> {notice.detail}</li>)}</ul><p className="ft-muted">Nên kiểm tra cảm biến và điều kiện thông gió nếu biến động kéo dài.</p></section> : null}
         </> : null}
       </> : null}
       {tab === 'rooms' ? <>
-        {mode === 'demo' ? <section className="panel ft-demo-settings"><div><h2>Kịch bản ảnh hưởng liên phòng</h2><p className="ft-muted">Chọn bất kỳ phòng nào làm nguồn biến động; tất cả tín hiệu đều là số liệu giả định.</p></div>
-          <label>Phòng phát sinh thay đổi<select value={demoSource} onChange={(e: ChangeEvent<HTMLSelectElement>) => setDemoSource(e.target.value as DemoRoomId)}>{DEMO_ROOMS.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}</select></label>
-          <label>Loại nguồn vi khí hậu<select value={demoEffect} onChange={(e: ChangeEvent<HTMLSelectElement>) => { const effect = e.target.value as DemoEffect; setDemoEffect(effect); setRoomMetric(effect === 'humidity' ? 'humidity' : 'temperature'); }}><option value="temperature">Nguồn làm nóng (bếp/nắng)</option><option value="humidity">Nguồn tạo hơi ẩm (tắm/nấu ăn)</option><option value="cooling">Làm mát (điều hòa giả định)</option></select></label>
-        </section> : null}
-        {mode === 'demo' ? <MicroclimateScenarioPanel demo={demo} doors={demoDoors} onDoorsChange={setDemoDoors} horizon={horizon} /> : null}
-        <section className="panel ft-room-filter"><div className="ft-section-bar"><h2>Các khu vực theo dõi</h2><span className="ft-muted">Chọn từ 2 đến 4 thiết bị để phân tích độ trễ.</span></div>
+        <section className="panel ft-room-filter">
+          <div className="ft-section-bar">
+            <div><h2>Chọn các trạm để dự báo lan truyền</h2><p className="ft-muted">Chọn từ 2 đến {maxComparison} trạm. Không chọn thì không hiển thị dự báo; chọn 1 trạm thì cần thêm trạm khác.</p></div>
+            <div className="ft-room-actions">
+              <span className="ft-muted">Đã chọn {roomIds.length}/{maxComparison} trạm</span>
+              <button type="button" onClick={() => setRoomSelection([])}>Bỏ chọn</button>
+              <button type="button" onClick={() => setRoomSelection(activeDevices.slice(0, maxComparison).map(device => device.id))}>Chọn tất cả {maxComparison} trạm</button>
+            </div>
+          </div>
           <div className="ft-room-options">{activeDevices.map((device) => {
             const chosen = roomIds.includes(device.id);
-            return <label key={device.id} className="ft-check"><input type="checkbox" checked={chosen} disabled={!chosen && roomIds.length >= 4} onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              const checked = event.target.checked;
-              setRoomSelection((old) => { const base = old ?? activeDevices.slice(0, 4).map((item) => item.id); return checked ? [...base, device.id].slice(0, 4) : base.filter((id) => id !== device.id); });
-            }}/>{deviceRoomLabel(device)}</label>;
+            return <label key={device.id} className="ft-check"><input type="checkbox" checked={chosen}
+              disabled={!chosen && roomIds.length >= maxComparison}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setRoomSelection(old => event.target.checked
+                ? [...old.filter(id => activeDevices.some(d => d.id === id)), device.id].slice(0, maxComparison)
+                : old.filter(id => id !== device.id))}/>{deviceRoomLabel(device)}</label>;
           })}</div>
         </section>
-        <div className="ft-room-grid">{roomIds.map((id) => {
-          const device = activeDevices.find((item) => item.id === id);
-          if (!device) return null;
-          const last = latestDhtSnapshot(device, nowMs);
-          const data = dataFor(id);
-          const values = data?.history.points ?? emptyPoints;
-          const trendT = analyzeTrend(values, 'temperature', nowMs, data?.history.latestSampleAt);
-          const trendH = analyzeTrend(values, 'humidity', nowMs, data?.history.latestSampleAt);
-          const forecastRoom = forecastBoth(values, model, horizon, nowMs, data?.history.latestSampleAt);
-          const note = evaluateAdvisory(values, trendT, trendH, forecastRoom);
-          return <button key={id} type="button" className={`ft-room-card ft-room-${note.level} ${selected?.id === id ? 'selected' : ''}`} onClick={() => { setSelectedId(id); setTab('trend'); }}>
-            <span className="ft-room-top"><strong>{deviceRoomLabel(device)}</strong><ChevronRight size={18}/></span>
-            <span className="ft-room-values">{formatSensorValue('temperature_c', last.temperature)}<small>°C</small><span> / </span>{formatSensorValue('humidity_pct', last.humidity)}<small>%RH</small></span>
-            <span className="ft-room-status">{note.title}</span>
-            <span className="ft-muted">Nhiệt: {trendNames[trendT.status]} · Độ ẩm: {trendNames[trendH.status]}</span>
-            {mode === 'demo' && id === demoSource ? <span className="ft-source-badge">Nguồn biến động giả định</span> : null}
-            {mode === 'live' && !data ? <span className="ft-warning">{queryFor(id)?.isPending ? 'Đang tải lịch sử…' : 'Chưa tải được lịch sử'}</span> : null}
-            <span className="ft-muted">{mode === 'demo' ? 'Dữ liệu tạo trong trình duyệt' : last.freshness}</span>
-          </button>;
-        })}</div>
-        {roomIds.length < 2 ? <section className="panel ft-empty-multi"><House size={30}/><h2>Hiện chưa đủ khu vực để phân tích ảnh hưởng</h2><p>Hệ thống mới có {activeDevices.length} thiết bị. Dữ liệu liên phòng cần ít nhất hai thiết bị, được ghi ở cùng mốc thời gian.</p>
-          <div className="ft-empty-actions"><button onClick={() => switchMode('demo')}><FlaskConical size={17}/> Thử mô phỏng 4 phòng</button><Link to="/app/devices">Quản lý thiết bị <ArrowRight size={15}/></Link></div>
-        </section> : <>
-          <section className="panel ft-wide-panel ft-chart-panel"><div className="ft-section-bar"><div><h2>So sánh diễn biến giữa các phòng</h2><p className="ft-muted">Đường thời gian được đồng bộ; chọn chỉ số muốn xem.</p></div>
-            <div className="ft-switch-metric"><button className={roomMetric === 'temperature' ? 'active' : ''} onClick={() => setRoomMetric('temperature')}>Nhiệt độ</button><button className={roomMetric === 'humidity' ? 'active' : ''} onClick={() => setRoomMetric('humidity')}>Độ ẩm</button></div>
-          </div><RoomComparisonChart rooms={roomHistories} metric={roomMetric}/></section>
-          <RoomImpactTimeline rooms={roomHistories} metric={roomMetric} sourceId={mode === 'demo' ? demoSource : undefined} demo={mode === 'demo'}/>
-          <section className="panel ft-links"><div className="ft-section-bar"><h2>Quan hệ biến động có độ trễ</h2><Activity size={19}/></div>
-            <p>Hệ thống đối chiếu biến động theo phút theo mọi hướng, từ 1 đến {CFG.lagMaxMinutes} phút. Có tương quan không đồng nghĩa là đã chứng minh nhiệt hoặc hơi ẩm lan truyền.</p>
-            {mode === 'live' && historyQueries.some((query) => query.isPending) ? <p>Đang tải lịch sử các phòng…</p> : null}
-            {matchingCandidates.length ? <div className="ft-link-list">{matchingCandidates.slice(0, 8).map((entry) => <article key={`${entry.sourceId}:${entry.targetId}:${entry.metric}`} className="ft-link-item">
-              <strong>{nameFor(entry.sourceId)} <ArrowRight size={16}/> {nameFor(entry.targetId)}</strong>
-              <span>Độ trễ khoảng {entry.lagMinutes} phút · tương quan {entry.correlation?.toFixed(2)} · {entry.samplePairs} cặp dữ liệu</span><small>{mode === 'demo' ? 'Tương quan trên dữ liệu mô hình vi khí hậu giả định' : 'Nghi vấn liên hệ thống kê, chưa xác nhận lan truyền'}</small>
-            </article>)}</div> : <p className="ft-muted">{roomLag.length && roomLag.every((item) => item.status === 'insufficient') ? 'Chưa đủ dữ liệu đồng bộ để phát hiện độ trễ.' : 'Chưa phát hiện mối liên hệ trễ đủ rõ trên dữ liệu hiện tại.'}</p>}
-            {bestPair ? <div className="ft-lag-chart-panel"><h3>Tương quan độ trễ 0–{CFG.lagMaxMinutes} phút</h3><p className="ft-muted">{nameFor(bestPair.sourceId)} → {nameFor(bestPair.targetId)} · {roomMetric === 'temperature' ? 'Nhiệt độ' : 'Độ ẩm'}</p><LagCorrelationChart points={profile}/><p className="ft-muted">{bestPair.detail}</p></div> : null}
-            <div className="ft-info"><Info size={16}/>{mode === 'demo' ? 'Đây là mô hình trao đổi nhiệt và hơi ẩm đa phòng với các hệ số, cửa và nguồn phát giả định; không phải số liệu vật lý đã được hiệu chuẩn.' : 'Simulator của nhóm chạy độc lập, nên có thể không phát hiện độ trễ. Phát hiện tương quan không chứng minh truyền nhiệt hoặc trao đổi hơi ẩm.'}</div>
-          </section>
-        </>}
+        {roomIds.length === 1 ? <section className="panel ft-spread-state" role="status"><House size={23}/><strong>Đã chọn 1 trạm</strong><p>Hãy chọn thêm ít nhất 1 trạm để xem nhiệt và hơi ẩm dự kiến ảnh hưởng tới vị trí khác như thế nào.</p></section> : null}
+        {roomIds.length >= 2 ? <SpreadScenarioPanel stations={spreadStations}/> : null}
       </> : null}
     </>}
   </div>;

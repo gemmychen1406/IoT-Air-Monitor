@@ -1,0 +1,372 @@
+﻿.ag-notification-settings,
+.ag-notification-schedule {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.ag-notification-settings h1 {
+  font-size: clamp(29px, 3vw, 36px);
+  line-height: 1.15;
+  margin: 0;
+}
+.ag-notification-settings h2,
+.ag-notification-schedule h2 {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0;
+}
+.ag-notification-settings :where(p, button, label, input, select, summary),
+.ag-notification-schedule :where(p, button, label, input, select, summary) {
+  font-size: 16px;
+}
+.ag-notification-settings :where(.caption, small),
+.ag-notification-schedule :where(.caption, small) {
+  font-size: 14px;
+}
+.ag-notification-settings p,
+.ag-notification-schedule p {
+  margin-bottom: 0;
+}
+.ag-notification-settings :where(button, summary),
+.ag-notification-schedule :where(button, summary) {
+  min-height: 44px;
+}
+.ag-notification-settings
+  :where(a, button, input, select, summary):focus-visible,
+.ag-notification-schedule
+  :where(a, button, input, select, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.ag-notification-header,
+.ag-schedule-header,
+.ag-notification-actions,
+.ag-schedule-channels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ag-notification-header,
+.ag-schedule-header {
+  justify-content: space-between;
+}
+.ag-notification-link {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-self: start;
+  min-height: 36px;
+}
+.ag-notification-tabs {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.ag-notification-tabs button {
+  border-color: transparent;
+  min-width: 0;
+  text-align: center;
+}
+.ag-notification-tabs button[aria-selected="true"],
+.ag-schedule-channels button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--accent);
+  font-weight: 650;
+}
+.ag-notification-tabs svg,
+.ag-notification-actions svg,
+.ag-schedule-channels svg {
+  flex-shrink: 0;
+}
+.ag-notification-panel {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.ag-notification-panel[hidden] {
+  display: none;
+}
+.ag-notification-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 22px;
+  border-radius: 14px;
+}
+.ag-notification-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ag-notification-card-heading p {
+  margin-top: 4px;
+}
+.ag-notification-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--panel));
+  color: var(--accent);
+}
+.ag-notification-card > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-notification-card > h2 svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ag-push-status,
+.ag-schedule-enabled {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+.ag-push-status {
+  font-weight: 650;
+}
+.ag-push-status[data-active="true"],
+.ag-schedule-enabled[data-enabled="true"] {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.ag-push-status svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.ag-push-options,
+.ag-schedule-layout,
+.ag-schedule-device-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.ag-push-options {
+  display: grid;
+  gap: 12px;
+}
+.ag-notification-disclosure {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+.ag-notification-disclosure[open] {
+  padding-bottom: 12px;
+}
+.ag-notification-disclosure summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 10px;
+}
+.ag-notification-disclosure > p + p {
+  margin-top: 8px;
+}
+.ag-notification-count {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  margin-inline-start: 4px;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 14px;
+}
+.ag-push-devices {
+  display: grid;
+  gap: 4px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr));
+  margin-top: 7px;
+}
+.ag-notification-card .check-label {
+  align-items: flex-start;
+  color: var(--text);
+  gap: 10px;
+  padding-block: 6px;
+}
+.ag-notification-card .check-label input {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.ag-notification-option {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.ag-push-help {
+  background: var(--bg);
+}
+.ag-push-help p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.ag-privacy-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.ag-privacy-option span > span {
+  display: block;
+  margin-top: 2px;
+}
+.ag-privacy-switch {
+  appearance: none;
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 26px;
+  min-height: 0;
+  border: 1px solid var(--muted);
+  border-radius: 20px;
+  padding: 0;
+  background: var(--bg);
+  cursor: pointer;
+}
+.ag-privacy-switch::before {
+  content: "";
+  position: absolute;
+  inset: 3px auto auto 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.ag-privacy-switch:checked {
+  border-color: #0f766e;
+  background: #0f766e;
+}
+.ag-privacy-switch:checked::before {
+  transform: translateX(18px);
+  background: white;
+}
+.ag-privacy-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.ag-schedule-channel-status,
+.ag-schedule-group-fields {
+  display: grid;
+  gap: 10px;
+}
+.ag-schedule-channel-status .badge {
+  justify-self: start;
+}
+.ag-schedule-layout {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+}
+.ag-schedule-form {
+  min-width: 0;
+}
+.ag-schedule-device-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px 10px 8px;
+}
+.ag-schedule-device-group legend {
+  padding: 0 5px;
+  font-weight: 650;
+  color: var(--accent);
+}
+.ag-schedule-device-group small {
+  display: block;
+}
+.ag-schedule-devices {
+  display: grid;
+  gap: 12px;
+  max-height: 29rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+.ag-schedule-layout .ag-notification-count {
+  width: fit-content;
+  margin: 0;
+}
+.ag-schedule-enabled {
+  justify-content: space-between;
+}
+.ag-schedule-enabled p {
+  font-weight: 650;
+}
+.ag-schedule-group summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+}
+.ag-schedule-group summary::-webkit-details-marker {
+  display: none;
+}
+.ag-schedule-group summary svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.ag-schedule-group[open] summary svg {
+  transform: rotate(180deg);
+}
+.ag-schedule-group summary .caption {
+  display: block;
+  margin-top: 3px;
+  font-weight: 400;
+}
+.ag-schedule-group-fields {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.ag-schedule-field-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+.ag-schedule-save {
+  justify-self: start;
+}
+@media (min-width: 1060px) {
+  .ag-schedule-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+}
+@media (max-width: 520px) {
+  .ag-notification-tabs button {
+    flex: 1;
+    padding-inline: 8px;
+  }
+  .ag-notification-actions .primary {
+    width: 100%;
+  }
+  .ag-notification-actions button:not(.primary) {
+    flex: 1;
+  }
+}
+
+.ag-notification-card .check-label {
+  margin-block: 0;
+}
