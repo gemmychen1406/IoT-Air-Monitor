@@ -17,6 +17,7 @@ import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './mod
 import { evaluateAdvisory } from './advisory.js';
 import { ForecastValidationPanel } from './ForecastValidationPanel.js';
 import { useAdvancedCurveScores } from './useAdvancedCurveScores.js';
+import { useStableAutoForecast } from './useStableAutoForecast.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
 import { PredictionChart } from './ForecastCharts.js';
 import ForecastDhtChart from './ForecastDhtChart.js';
@@ -138,11 +139,15 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   // Mỗi chỉ số có thể được chọn thuật toán khác nhau trên cùng mốc dự báo.
   // Shared incremental results feed both the automatic choice and MAE table.
-  const advancedScores = useAdvancedCurveScores(points, horizon, tab === 'forecast' && points.length > 0 && (model === 'auto' || showValidation));
-  const selection = useMemo(() => ({
+  const advancedSnapshot = useAdvancedCurveScores(points, horizon,
+    tab === 'forecast' && points.length > 0 && (model === 'auto' || showValidation), selected?.id ?? '');
+  const advancedScores = advancedSnapshot.scores;
+  const candidateSelection = useMemo(() => ({
     temperature: selectForecastModel(points, 'temperature', horizon, nowMs, latestSampleAt, model, advancedScores?.temperature ?? null),
     humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model, advancedScores?.humidity ?? null),
   }), [points, model, horizon, nowMs, latestSampleAt, advancedScores]);
+  const selection = useStableAutoForecast(candidateSelection, points, selected?.id ?? '',
+    horizon, model, advancedSnapshot.current);
   const forecast = useMemo(() => ({
     temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt, latestSample?.temperature),
     humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt, latestSample?.humidity),
@@ -195,6 +200,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
                     ? 'Chưa ghi nhận biến động liên tục vượt ngưỡng cảnh báo trong 6–7 phút gần nhất. Các chỉ số vẫn có thể tăng hoặc giảm nhẹ.'
                     : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
             </div>
+            <p className="ft-muted">Ngưỡng nhận định (cần 6–7 mẫu theo phút liên tục): nhiệt độ thay đổi ít nhất {fmt(CFG.temperatureChangeAmplitude)} °C và tốc độ ít nhất {fmt(CFG.temperatureRapidSlope)} °C/phút; độ ẩm thay đổi ít nhất {fmt(CFG.humidityChangeAmplitude)} điểm %RH và tốc độ ít nhất {fmt(CFG.humidityRapidSlope)} điểm %RH/phút. Hai điều kiện của cùng chỉ số phải đồng thời đạt, cùng chiều tăng/giảm. Hiện có {dhtAssessment.validMinutes}/{dhtAssessment.requiredMinutes} mẫu phút liên tiếp tối thiểu; các ngưỡng này không phải giới hạn an toàn.</p>
             {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
           </section>
           <section className="panel ft-chart-panel ft-wide-panel">
