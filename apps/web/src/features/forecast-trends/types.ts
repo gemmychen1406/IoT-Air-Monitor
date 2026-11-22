@@ -2,7 +2,7 @@
 import type { DeviceView } from '@iot/contracts';
 
 export type Measure = 'temperature' | 'humidity';
-export type ForecastModel = 'naive' | 'linear' | 'holt';
+export type ForecastModel = 'naive' | 'linear' | 'holt' | 'random_forest' | 'holt_winters';
 export type TrendStatus = 'increasing' | 'decreasing' | 'stable' | 'insufficient' | 'stale';
 
 export interface MinuteReading {
@@ -20,6 +20,7 @@ export interface NormalizedHistory {
   rejectedSamples: number;
   duplicateTimestamps: number;
   latestSampleAt: number | null;
+  latestSample: { timestamp: number; temperature: number; humidity: number } | null;
   latestReceivedAt: number | null;
 }
 

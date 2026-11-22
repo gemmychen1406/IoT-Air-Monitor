@@ -2,7 +2,9 @@
 /** Experimental thresholds for DHT11 trends, not certified safety limits. */
 export const FORECAST_CONFIG = {
   minuteMs: 60_000,
-  historyMinutes: 180,
+  historyMinutes: 360,
+  advancedMaxMinutes: 360,
+  forestMinTrainingRows: 50,
   trendMinutes: 30,
   chartMinutes: 60,
   movingAverageMinutes: 3,
@@ -27,7 +29,7 @@ export const FORECAST_CONFIG = {
   forecastHorizons: [15, 30] as const,
   validationHorizons: [5, 10, 15, 30] as const,
   historyPageSize: 1000,
-  historyMaxPages: 5,
+  historyMaxPages: 8,
   lagMaxMinutes: 15,
   lagMinPairs: 20,
   lagMinCorrelation: 0.7,

@@ -10,6 +10,7 @@ import type { ForecastModel, Measure, MinuteReading } from './types.js';
 export interface WalkForwardWindow {
   minTargetAt?: number;
   maxPairs?: number;
+  multiStep?: boolean; // compare +5, +10, ... +horizon, not only the endpoint
 }
 
 export interface ValidationRow {
@@ -34,18 +35,27 @@ export function walkForward(
   let skipped = 0;
   for (let i = CFG.regressionMinimum - 1; i < sorted.length; i++) {
     const origin = sorted[i]!;
-    const expectedTime = origin.timestamp + horizon * CFG.minuteMs;
-    const nearest = sorted.filter((p) => p.timestamp > origin.timestamp && Math.abs(p.timestamp - expectedTime) <= CFG.validationToleranceMinutes * CFG.minuteMs)
-      .sort((a, b) => Math.abs(a.timestamp - expectedTime) - Math.abs(b.timestamp - expectedTime) || a.timestamp - b.timestamp)[0];
-    if (!nearest) { skipped++; continue; }
-    if (window?.minTargetAt !== undefined && nearest.timestamp < window.minTargetAt) continue;
-    // No readings after origin are included in training.
+    const steps = window?.multiStep
+      ? Array.from({ length: Math.floor(horizon / 5) }, (_, index) => (index + 1) * 5)
+      : [horizon];
+    const targets = steps.map((step) => {
+      const time = origin.timestamp + step * CFG.minuteMs;
+      return sorted.filter((p) => p.timestamp > origin.timestamp &&
+        Math.abs(p.timestamp - time) <= CFG.validationToleranceMinutes * CFG.minuteMs)
+        .sort((a, b) => Math.abs(a.timestamp - time) - Math.abs(b.timestamp - time) || a.timestamp - b.timestamp)[0];
+    });
+    if (targets.some((target) => !target)) { skipped++; continue; }
+    const lastTarget = targets.at(-1)!;
+    if (window?.minTargetAt !== undefined && lastTarget.timestamp < window.minTargetAt) continue;
+    // All models share the exact same completed origin and target minutes.
     const train = sorted.slice(0, i + 1);
-    const predictions = models.map((model) => predictAt(train, metric, model, origin.timestamp, nearest.timestamp));
-    if (predictions.some((prediction) => prediction === null)) { skipped++; continue; }
+    const predictions = models.map((model) => targets.map((target) =>
+      predictAt(train, metric, model, origin.timestamp, target!.timestamp)));
+    if (predictions.some((path) => path.some((prediction) => prediction === null))) { skipped++; continue; }
     completed.push({
-      targetAt: nearest.timestamp,
-      errors: predictions.map((prediction) => Math.abs(postProcess(prediction!) - nearest[metric]!)),
+      targetAt: lastTarget.timestamp,
+      errors: predictions.map((path) => path.reduce<number>((total, prediction, index) =>
+        total + Math.abs(postProcess(prediction!) - targets[index]![metric]!), 0) / steps.length),
     });
   }
   // The same completed origin/target pairs are used for ALL models.
@@ -76,7 +86,9 @@ export function validationTrace(
 ): ValidationSample[] {
   const sorted = [...points].filter((p) => p[metric] !== null).sort((a, b) => a.timestamp - b.timestamp);
   const output: ValidationSample[] = [];
-  for (let i = CFG.regressionMinimum - 1; i < sorted.length; i++) {
+  const advanced = model === 'random_forest' || model === 'holt_winters';
+  const firstOrigin = advanced ? Math.max(CFG.regressionMinimum - 1, sorted.length - 30 - horizon) : CFG.regressionMinimum - 1;
+  for (let i = firstOrigin; i < sorted.length; i++) {
     const origin = sorted[i]!;
     const target = origin.timestamp + horizon * CFG.minuteMs;
     const nearest = sorted.find((p) => p.timestamp > origin.timestamp && Math.abs(p.timestamp - target) <= CFG.validationToleranceMinutes * CFG.minuteMs);

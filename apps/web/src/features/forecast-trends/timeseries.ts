@@ -81,7 +81,12 @@ export function normalizeReadings(readings: readonly ReadingView[], nowMs: numbe
       points[i]!.humidityMa = window.reduce((sum, point) => sum + point.humidity!, 0) / window.length;
     }
   }
-  return { points, validSamples: byTimestamp.size, rejectedSamples, duplicateTimestamps, latestSampleAt, latestReceivedAt };
+  const latestRaw = latestSampleAt === null ? null : byTimestamp.get(latestSampleAt);
+  const latestSample = latestSampleAt !== null && latestRaw
+    ? { timestamp: latestSampleAt, temperature: latestRaw.t / latestRaw.count,
+      humidity: latestRaw.h / latestRaw.count } : null;
+  return { points, validSamples: byTimestamp.size, rejectedSamples, duplicateTimestamps,
+    latestSampleAt, latestSample, latestReceivedAt };
 }
 
 export function latestValid(points: readonly MinuteReading[], metric: Measure) {

@@ -146,7 +146,9 @@ describe('recent completed MAE comparisons at the requested horizon', () => {
     expect(chooseByMae(full, 'temperature')?.model).toBe('naive');
     expect(chooseByMae(recent, 'temperature', 6)?.model).toBe('linear');
     const selection = selectForecastModel(points, 'temperature', 15, current);
-    expect(selection).toMatchObject({ basis: 'recent_mae', model: 'linear', horizon: 15 });
+    // Multi-step MAE favours Holt across +5/+10/+15 here even though
+    // the original endpoint-only MAE ranks Linear first.
+    expect(selection).toMatchObject({ basis: 'recent_mae', model: 'holt', horizon: 15 });
     expect(selection.explanation).toContain('mốc gần nhất ở khoảng +15 phút');
   });
 

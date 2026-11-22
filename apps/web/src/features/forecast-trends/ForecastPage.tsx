@@ -15,6 +15,7 @@ import { analyzeTrend } from './timeseries.js';
 import { forecastMeasure } from './forecasting.js';
 import { MODEL_LABELS, selectForecastModel, type ForecastSelection } from './modelSelection.js';
 import { evaluateAdvisory } from './advisory.js';
+import { ForecastValidationPanel } from './ForecastValidationPanel.js';
 import { MoistureIndicators } from './MicroclimateScenarioPanel.js';
 import { PredictionChart } from './ForecastCharts.js';
 import ForecastDhtChart from './ForecastDhtChart.js';
@@ -36,9 +37,9 @@ const trendNames = {
 };
 const models: { id: ForecastSelection; label: string }[] = [
   { id: 'auto', label: 'Tự động (Khuyên dùng)' },
-  { id: 'naive', label: MODEL_LABELS.naive },
-  { id: 'linear', label: MODEL_LABELS.linear },
-  { id: 'holt', label: MODEL_LABELS.holt },
+  { id: 'naive', label: 'Naive (đối chứng)' },
+  { id: 'random_forest', label: MODEL_LABELS.random_forest },
+  { id: 'holt_winters', label: MODEL_LABELS.holt_winters },
 ];
 const fmt = (value: number | null | undefined, digits = 1) => value === null || value === undefined ? '—' : value.toLocaleString('vi-VN', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const fmtTime = (time: number | null | undefined) => time === null || time === undefined ? 'Chưa có' : new Date(time).toLocaleString('vi-VN');
@@ -73,6 +74,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [roomSelection, setRoomSelection] = useState<string[]>([]);
   const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
+  const [showValidation, setShowValidation] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const queryClient = useQueryClient();
   const latestSignalRef = useRef<{ deviceId: string; latestId: string | null; refreshedAt: number } | null>(null);
@@ -134,6 +136,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const points = selectedHistory?.points ?? emptyPoints;
   const live = selected ? latestDhtSnapshot(selected, nowMs) : null;
   const latestSampleAt = selectedHistory?.latestSampleAt;
+  const latestSample = selectedHistory?.latestSample;
   const dataStale = latestSampleAt !== null && latestSampleAt !== undefined && nowMs - latestSampleAt > CFG.staleAfterMs;
   const temperatureTrend = useMemo(() => analyzeTrend(points, 'temperature', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const humidityTrend = useMemo(() => analyzeTrend(points, 'humidity', nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
@@ -143,9 +146,9 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
     humidity: selectForecastModel(points, 'humidity', horizon, nowMs, latestSampleAt, model),
   }), [points, model, horizon, nowMs, latestSampleAt]);
   const forecast = useMemo(() => ({
-    temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt),
-    humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt),
-  }), [points, selection, horizon, nowMs, latestSampleAt]);
+    temperature: forecastMeasure(points, 'temperature', selection.temperature.model, horizon, nowMs, latestSampleAt, latestSample?.temperature),
+    humidity: forecastMeasure(points, 'humidity', selection.humidity.model, horizon, nowMs, latestSampleAt, latestSample?.humidity),
+  }), [points, selection, horizon, nowMs, latestSampleAt, latestSample]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
   const dhtAssessment = useMemo(() => evaluateDhtAssessment(points, nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
   const spreadStations = roomIds.flatMap((id) => {
@@ -229,7 +232,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             <select value={model} onChange={(e: ChangeEvent<HTMLSelectElement>) => setModel(e.target.value as ForecastSelection)}>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
           </label><label>Khoảng dự báo
             <select value={horizon} onChange={(e: ChangeEvent<HTMLSelectElement>) => setHorizon(Number(e.target.value) as 15 | 30)}><option value={15}>15 phút</option><option value={30}>30 phút</option></select>
-          </label><div className="ft-controls-caption">Dự báo tính từ mẫu đo mới nhất khi thiết bị đang cập nhật. Mốc 15/30 phút được tính sau mẫu đó, không phải kết quả đã đo.</div></section>
+          </label><div className="ft-controls-caption">Mô hình học từ dữ liệu trung bình theo phút, sau đó neo dự báo vào mẫu DHT11 hợp lệ mới nhất. Random Forest/Holt-Winters chỉ dự báo khi đủ dữ liệu. Tự động chỉ chọn mô hình mới nếu MAE đa mốc tốt hơn mô hình cơ sở.</div></section>
           {forecast.temperature.status !== 'eligible' && forecast.humidity.status !== 'eligible'
             ? <div className="ft-info"><Info size={16}/> {forecast.temperature.reason ?? 'Chưa đủ dữ liệu mới để dự báo tương lai.'} Không sử dụng dự báo hồi cứu thay thế.</div> : null}
           <div className="ft-two-cards">
@@ -252,8 +255,17 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             <PredictionChart points={points} metric="temperature" result={forecast} /></section>
           <section className="panel ft-chart-panel ft-wide-panel"><div className="ft-section-bar"><h2>Dự báo độ ẩm</h2><span className="ft-muted">{forecastDeltaText(forecast.humidity, '%RH', horizon) ?? `Chưa có dự báo hợp lệ +${horizon} phút`}</span></div>
             <PredictionChart points={points} metric="humidity" result={forecast} /></section>
+          <section className="panel ft-validation-toggle">
+            <button type="button" onClick={() => setShowValidation((open) => !open)}>
+              {showValidation ? 'Ẩn kiểm chứng MAE' : 'Xem kiểm chứng MAE đa mốc'}
+            </button>
+            <p className="ft-muted">Kết quả chỉ phản ánh các mốc quá khứ đã có số đo để đối chiếu, không bảo đảm dự báo tương lai chính xác tuyệt đối.</p>
+          </section>
+          {showValidation ? <ForecastValidationPanel history={points} horizon={horizon} model={{
+            temperature: selection.temperature.model, humidity: selection.humidity.model,
+          }}/> : null}
           <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>
-            {advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail.replace('biến đổi nhanh', 'biến đổi liên tục')}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}
+            {advisory.details.length ? <ul>{advisory.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : <p>Chưa phát hiện biến động đáng chú ý từ dữ liệu hiện có.</p>}
             <p className="ft-muted">Đây là ước tính thống kê, không phải số đo tương lai hay cảnh báo nguy hiểm đã xác nhận.</p>
           </section>
         </> : null}
