@@ -322,16 +322,3 @@
 .ft-threshold-details { font-size: 12px; margin: 7px 0 13px; }
 .ft-threshold-details summary { cursor: pointer; }
 .ft-threshold-details p { margin-top: 6px; line-height: 1.55; }
-
-
-/* Forecast-only: independent Auto holdout and historic-error tooltip. */
-.ft-holdout-panel { display: grid; gap: 12px; }
-.ft-holdout-panel .ft-section-bar { gap: 12px; flex-wrap: wrap; }
-.ft-holdout-panel button { cursor: pointer; }
-.ft-holdout-panel button:disabled { cursor: progress; opacity: .65; }
-.ft-holdout-notes { display: grid; gap: 4px; }
-.ft-holdout-notes p { margin: 0; }
-.ft-holdout-details summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
-.ft-holdout-details td small { display: block; color: var(--muted, #64748b); font-size: .78em; }
-.ft-validation-tooltip { color: var(--text, #e2e8f0); background: var(--panel, #111827); border: 1px solid var(--border, #334155); border-radius: 9px; padding: 10px 12px; box-shadow: 0 6px 24px #0002; font-size: 12px; }
-.ft-validation-tooltip p { margin: 4px 0 0; }

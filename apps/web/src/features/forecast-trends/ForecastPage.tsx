@@ -266,7 +266,7 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             </button>
             <p className="ft-muted">Kết quả chỉ phản ánh các mốc quá khứ đã có số đo để đối chiếu, không bảo đảm dự báo tương lai chính xác tuyệt đối.</p>
           </section>
-          {showValidation ? <ForecastValidationPanel history={points} deviceId={selected.id} horizon={horizon} advancedScores={advancedScores} model={{
+          {showValidation ? <ForecastValidationPanel history={points} horizon={horizon} advancedScores={advancedScores} model={{
             temperature: selection.temperature.model, humidity: selection.humidity.model,
           }} forecast={forecast} /> : null}
           <section className={`panel ft-advisory ft-advisory-${advisory.level}`}><h3><TriangleAlert size={18} /> {advisory.title}</h3>
