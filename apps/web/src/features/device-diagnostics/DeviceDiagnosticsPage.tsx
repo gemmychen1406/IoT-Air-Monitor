@@ -14,6 +14,7 @@ import type { DeviceView, DiagnosticSummaryRow } from "@iot/contracts";
 import { LoadState } from "../../components/FeatureUI.js";
 import { api } from "../../lib/api.js";
 import { StationDetail, evidenceGroup } from "./StationDetail.js";
+import { RoomSymbol } from "./RoomSymbol.js";
 import { readOptions } from "./preferences.js";
 import "./styles.css";
 const SpatialSimulation = lazy(() => import("./SpatialSimulation.js"));
@@ -166,7 +167,8 @@ export default function DeviceDiagnosticsPage({
       >
         <Icon className={issue ? "dd-issue" : "dd-ok"} size={19} />
         <span>
-          <small>
+          <small className="dd-room-meta">
+            <RoomSymbol name={row.room} />
             {row.room ?? "Chưa gán phòng"}
             {row.source_kind === "simulator" && " · Mô phỏng"}
           </small>

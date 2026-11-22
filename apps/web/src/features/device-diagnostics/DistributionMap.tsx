@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { interpolate, type Point } from "./simulation/engine.js";
 import type { Measurement } from "./room-distribution.js";
+import { Layers, MapPin } from "lucide-react";
+import { RoomSymbol } from "./RoomSymbol.js";
 
 const size = 64;
 const stops = [
@@ -78,18 +80,21 @@ export function DistributionMap({
       <header className="dd-plan-head">
         <div>
           <small>Sơ đồ vị trí trạm</small>
-          <h3>{roomName}</h3>
+          <h3 className="dd-room-meta">
+            <RoomSymbol name={roomName} />
+            {roomName}
+          </h3>
         </div>
         <div className="dd-plan-switch" role="group" aria-label="Lớp bản đồ">
           <button aria-pressed={!estimated} onClick={() => setShowField(false)}>
-            Điểm đo
+            <MapPin size={16} aria-hidden="true" /> Điểm đo
           </button>
           <button
             disabled={!surface}
             aria-pressed={estimated}
             onClick={() => setShowField(true)}
           >
-            Vùng ước tính
+            <Layers size={16} aria-hidden="true" /> Vùng ước tính
           </button>
         </div>
       </header>

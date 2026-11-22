@@ -5,6 +5,8 @@ import type { SpacesView, RoomMapView, RoomMapDevice } from "@iot/contracts";
 import { api } from "../../lib/api.js";
 import { LoadState } from "../../components/FeatureUI.js";
 import { DistributionMap } from "./DistributionMap.js";
+import { History, Radio } from "lucide-react";
+import { RoomSymbol } from "./RoomSymbol.js";
 import { readStationAt } from "./room-history.js";
 import { roomMeasurements, type GasMetric } from "./room-distribution.js";
 
@@ -103,6 +105,14 @@ export default function SpatialSimulation({
     at !== null,
   );
   const error = maps.find((q) => q.isError);
+  function selectRoom(id: string) {
+    choose(id);
+    try {
+      localStorage.setItem(storage, id);
+    } catch {
+      /* optional */
+    }
+  }
   return (
     <section className="panel dd-room">
       <h2>Phân bố tín hiệu theo phòng</h2>
@@ -117,26 +127,38 @@ export default function SpatialSimulation({
       {room ? (
         <>
           <div className="dd-room-controls">
-            <label>
-              Phòng
-              <select
-                value={room.id}
-                onChange={(e) => {
-                  choose(e.target.value);
-                  try {
-                    localStorage.setItem(storage, e.target.value);
-                  } catch {
-                    /* optional */
-                  }
-                }}
-              >
+            {rooms.length <= 6 ? (
+              <fieldset className="dd-room-picker">
+                <legend>Phòng</legend>
                 {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.area.name} / {r.name}
-                  </option>
+                  <button
+                    key={r.id}
+                    aria-pressed={r.id === room.id}
+                    onClick={() => selectRoom(r.id)}
+                  >
+                    <RoomSymbol name={r.name} />{" "}
+                    <span>
+                      <strong>{r.name}</strong>
+                      <small>{r.area.name}</small>
+                    </span>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </fieldset>
+            ) : (
+              <label>
+                Phòng
+                <select
+                  value={room.id}
+                  onChange={(e) => selectRoom(e.target.value)}
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.area.name} / {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Chỉ số
               <select
@@ -167,7 +189,7 @@ export default function SpatialSimulation({
               aria-label="Thời điểm bản đồ"
             >
               <button aria-pressed={at === null} onClick={() => setAt(null)}>
-                Trực tiếp
+                <Radio size={16} aria-hidden="true" /> Trực tiếp
               </button>
               <button
                 aria-pressed={at !== null}
@@ -175,7 +197,7 @@ export default function SpatialSimulation({
                   if (at === null) goTo(Date.now() - 60000);
                 }}
               >
-                Xem lại
+                <History size={16} aria-hidden="true" /> Xem lại
               </button>
             </div>
             {at !== null && (

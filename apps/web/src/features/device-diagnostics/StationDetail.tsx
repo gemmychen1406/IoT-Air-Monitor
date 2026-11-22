@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Clock3, Radio, RefreshCw, ChartNoAxesCombined } from "lucide-react";
+import { RoomSymbol } from "./RoomSymbol.js";
 import {
   diagnosticOptionsSchema,
   type DiagnosticSummaryRow,
@@ -133,7 +134,8 @@ export function StationDetail({
         ← Danh sách thiết bị
       </button>
       <h2>{row.name}</h2>
-      <p>
+      <p className="dd-room-meta">
+        <RoomSymbol name={row.room} />
         {row.room ?? "Chưa gán phòng"}
         {row.source_kind === "simulator" && " · Mô phỏng"}
       </p>
@@ -159,6 +161,13 @@ export function StationDetail({
             aria-pressed={key === tab}
             onClick={() => setTab(key as keyof typeof sections)}
           >
+            {key === "connection" ? (
+              <Radio size={16} aria-hidden="true" />
+            ) : key === "quality" ? (
+              <ChartNoAxesCombined size={16} aria-hidden="true" />
+            ) : (
+              <Clock3 size={16} aria-hidden="true" />
+            )}
             {label}
           </button>
         ))}

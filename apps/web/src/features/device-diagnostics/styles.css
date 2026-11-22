@@ -574,3 +574,50 @@
 .dd-history form, .dd-time-step { display:flex; align-items:end; flex-wrap:wrap; gap:6px; }
 .dd-history p { flex-basis:100%; margin:0; font-size:.9rem; color:var(--muted); }
 .dd-history input { max-width:100%; }
+
+.dd-room-symbol {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9px;
+  color: var(--text);
+}
+.dd-room-meta, .dd-room-picker button, .dd-plan-switch button, .dd-hub .dd-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+}
+.dd-station .dd-room-symbol { width: 1.45rem; height: 1.45rem; border-radius: 6px; }
+.dd-station .dd-room-symbol svg { width: 14px; }
+.dd-room-controls { align-items: end; }
+.dd-room-picker { padding: 0; margin: 0; border: 0; min-width: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.dd-room-picker legend { padding: 0; margin-bottom: 4px; }
+.dd-room-picker button { text-align: start; padding: 6px 10px 6px 6px; }
+.dd-room-picker button span:last-child { display: grid; gap: 1px; }
+.dd-room-picker small { color: var(--muted); }
+.dd-hub > .dd-tabs button[aria-pressed=true] { color: #fff; background: #206967; border-color: #206967; }
+.dd-hub .dd-station { border-inline-start: 3px solid transparent; padding-inline-start: 10px; }
+.dd-hub .dd-station[data-impact=fault] { border-inline-start-color: #d56761; }
+.dd-hub .dd-station[data-impact=attention] { border-inline-start-color: #c38b3a; }
+.dd-hub :is(button,select,input,summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (hover:hover) {
+  .dd-hub :is(.dd-station,.dd-room-picker button,.dd-point-list button,.dd-plan-switch button,.dd-tabs button):not(:disabled):not([aria-pressed=true]):hover {
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    border-color: var(--accent);
+  }
+  .dd-floor .dd-pin:hover { z-index: 4; box-shadow: 0 0 0 5px #298f8c55; }
+}
+@media (hover:hover) and (prefers-reduced-motion:no-preference) {
+  .dd-station > svg:last-child, .dd-room-picker .dd-room-symbol, .dd-pin, .dd-plan-switch button {
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
+  }
+  .dd-station:hover > svg:last-child { transform: translateX(3px); }
+  .dd-room-picker button:hover .dd-room-symbol { transform: translateY(-2px); }
+}
+
+.dd-hub { grid-template-columns: minmax(0, 1fr); }
+.dd-room, .dd-fleet { min-width: 0; }
+.dd-room-picker { max-width: 100%; }
+.dd-floor { width: 100%; box-sizing: border-box; }
