@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, TrendingUp, House, Info, Radio, TriangleAlert, Waves, History } from 'lucide-react';
+import { Activity, TrendingUp, Info, Radio, TriangleAlert, Waves, History } from 'lucide-react';
 import { Link } from 'react-router';
 import type { DeviceView, SpacesView } from '@iot/contracts';
 import { api } from '../../lib/api.js';
@@ -21,14 +21,11 @@ import { PredictionChart } from './ForecastCharts.js';
 import ForecastDhtChart from './ForecastDhtChart.js';
 import type { MinuteReading, TrendResult } from './types.js';
 import { stationDisplayName } from './stationDisplay.js';
-import { SpreadScenarioPanel } from './SpreadScenarioPanel.js';
-import { classifySpreadRoom } from './spreadForecast.js';
 import './forecast-trends.css';
 
 const TABS = [
-  { id: 'trend', label: 'Giám sát biến động', icon: Waves },
+  { id: 'trend', label: 'Phân tích xu hướng', icon: Waves },
   { id: 'forecast', label: 'Dự báo 15–30 phút', icon: TrendingUp },
-  { id: 'rooms', label: 'Dự báo lan truyền', icon: House },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 const trendNames = {
@@ -71,7 +68,6 @@ function CurrentCard({ title, metric, unit, trend, latestValue, freshness, histo
 export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   const [tab, setTab] = useState<Tab>('trend');
   const [selectedId, setSelectedId] = useState('');
-  const [roomSelection, setRoomSelection] = useState<string[]>([]);
   const [model, setModel] = useState<ForecastSelection>('auto');
   const [horizon, setHorizon] = useState<15 | 30>(15);
   const [showValidation, setShowValidation] = useState(false);
@@ -84,7 +80,6 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   }, []);
 
   const activeDevices = devices.filter((device) => !device.archived_at);
-  const maxComparison = Math.min(9, activeDevices.length);
   const spacesQuery = useQuery({ queryKey: ['monitoring-spaces'], queryFn: () => api<SpacesView>('/spaces'), staleTime: 60_000 });
   const deviceRoomLabel = (device: DeviceView) => {
     const assigned = spacesQuery.data?.devices.find((item) => item.id === device.id);
@@ -92,8 +87,6 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
     return stationDisplayName(device.name, room?.name ?? device.location ?? null);
   };
   const selected = activeDevices.find((device) => device.id === selectedId) ?? activeDevices[0];
-  // No auto-selected stations: users may choose none, one, or any 2..9 devices.
-  const roomIds = roomSelection.filter((id) => activeDevices.some((device) => device.id === id));
   const queryIds = selected ? [selected.id] : [];
   const historyQueries = useQueries({
     queries: queryIds.map((deviceId) => ({
@@ -151,30 +144,9 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
   }), [points, selection, horizon, nowMs, latestSampleAt, latestSample]);
   const advisory = useMemo(() => evaluateAdvisory(points, temperatureTrend, humidityTrend, forecast), [points, temperatureTrend, humidityTrend, forecast]);
   const dhtAssessment = useMemo(() => evaluateDhtAssessment(points, nowMs, latestSampleAt), [points, nowMs, latestSampleAt]);
-  const spreadStations = roomIds.flatMap((id) => {
-    const device = activeDevices.find((d) => d.id === id);
-    if (!device) return [];
-    const reading = device.latest;
-    const snapshot = latestDhtSnapshot(device, nowMs);
-    const stamp = reading?.payload.sampled_at ? Date.parse(reading.payload.sampled_at) : NaN;
-    const recent = device.status === 'online' && reading?.payload.time_quality === 'synced'
-      && Number.isFinite(stamp) && stamp <= nowMs + CFG.minuteMs
-      && nowMs - stamp <= CFG.staleAfterMs;
-    const roomId = spacesQuery.data?.devices.find(item => item.id === device.id)?.room_id;
-    const roomName = spacesQuery.data?.rooms.find(room => room.id === roomId)?.name;
-    return [{
-      id: device.id,
-      name: deviceRoomLabel(device),
-      room: classifySpreadRoom(roomName || device.location || device.name),
-      temperature: snapshot.temperature ?? 0,
-      humidity: snapshot.humidity ?? 0,
-      valid: Boolean(recent && snapshot.temperature !== null && snapshot.humidity !== null),
-      reason: recent ? snapshot.freshness : 'Dữ liệu không đồng bộ hoặc đã cũ',
-    }];
-  });
   return <div className="ft-page">
     <div className="page-title ft-title">
-      <div><h1>Giám sát & Dự báo</h1><p>Theo dõi nhiệt độ, độ ẩm và dự báo ảnh hưởng lan truyền giữa các trạm từ dữ liệu hệ thống.</p></div>
+      <div><h1>Giám sát & Dự báo</h1><p>Phân tích xu hướng nhiệt độ, độ ẩm và dự báo 15–30 phút từ dữ liệu thiết bị.</p></div>
       {selected ? <label className="ft-device-select">Thiết bị / khu vực
         <select value={selected.id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedId(event.target.value)}>
           {activeDevices.map((device) => <option value={device.id} key={device.id}>{deviceRoomLabel(device)}{device.source_kind === 'simulator' ? ' (mô phỏng)' : ''}</option>)}
@@ -208,14 +180,14 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             <div role="status" className={`ft-dht-assessment ft-dht-assessment-${dhtAssessment.status}`}>
               <strong>{dhtAssessment.status === 'stale' ? 'Dữ liệu cũ'
                 : dhtAssessment.status === 'insufficient' ? 'Chưa đủ mẫu'
-                : dhtAssessment.status === 'normal' ? 'Không có biến động bất thường'
+                : dhtAssessment.status === 'normal' ? 'Chưa ghi nhận biến động đáng chú ý'
                 : 'Có biến động liên tục cần theo dõi'}</strong>
               <p>{dhtAssessment.status === 'stale'
                 ? 'Thiết bị đã ngừng gửi dữ liệu mới hơn 5 phút; tạm dừng đánh giá biến động hiện tại.'
                 : dhtAssessment.status === 'insufficient'
                   ? `Chưa đủ dữ liệu liên tục (hiện có ${dhtAssessment.validMinutes}/${dhtAssessment.requiredMinutes} phút hợp lệ) để đánh giá biến động.`
                   : dhtAssessment.status === 'normal'
-                    ? 'Không ghi nhận biến động bất thường: nhiệt độ và độ ẩm đang duy trì ổn định quanh mức nền.'
+                    ? 'Chưa ghi nhận biến động liên tục vượt đồng thời ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút; các chỉ số vẫn có thể tăng hoặc giảm nhẹ.'
                     : 'Biến động được ghi nhận khi đồng thời vượt ngưỡng tốc độ và tổng mức thay đổi trong 6–7 phút liên tục.'}</p>
             </div>
             {dhtAssessment.status === 'watch' ? <div className="ft-notice-list">{dhtAssessment.notices.map((notice, index) => <div key={`${notice.title}:${index}`} className={`ft-notice ft-notice-${notice.level}`}><strong>{notice.title}</strong><p>{notice.detail}</p></div>)}</div> : null}
@@ -269,28 +241,6 @@ export default function ForecastPage({ devices }: { devices: DeviceView[] }) {
             <p className="ft-muted">Đây là ước tính thống kê, không phải số đo tương lai hay cảnh báo nguy hiểm đã xác nhận.</p>
           </section>
         </> : null}
-      </> : null}
-      {tab === 'rooms' ? <>
-        <section className="panel ft-room-filter">
-          <div className="ft-section-bar">
-            <div><h2>Chọn các trạm để dự báo lan truyền</h2><p className="ft-muted">Chọn từ 2 đến {maxComparison} trạm. Không chọn thì không hiển thị dự báo; chọn 1 trạm thì cần thêm trạm khác.</p></div>
-            <div className="ft-room-actions">
-              <span className="ft-muted">Đã chọn {roomIds.length}/{maxComparison} trạm</span>
-              <button type="button" onClick={() => setRoomSelection([])}>Bỏ chọn</button>
-              <button type="button" onClick={() => setRoomSelection(activeDevices.slice(0, maxComparison).map(device => device.id))}>Chọn tất cả {maxComparison} trạm</button>
-            </div>
-          </div>
-          <div className="ft-room-options">{activeDevices.map((device) => {
-            const chosen = roomIds.includes(device.id);
-            return <label key={device.id} className="ft-check"><input type="checkbox" checked={chosen}
-              disabled={!chosen && roomIds.length >= maxComparison}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setRoomSelection(old => event.target.checked
-                ? [...old.filter(id => activeDevices.some(d => d.id === id)), device.id].slice(0, maxComparison)
-                : old.filter(id => id !== device.id))}/>{deviceRoomLabel(device)}</label>;
-          })}</div>
-        </section>
-        {roomIds.length === 1 ? <section className="panel ft-spread-state" role="status"><House size={23}/><strong>Đã chọn 1 trạm</strong><p>Hãy chọn thêm ít nhất 1 trạm để xem nhiệt và hơi ẩm dự kiến ảnh hưởng tới vị trí khác như thế nào.</p></section> : null}
-        {roomIds.length >= 2 ? <SpreadScenarioPanel stations={spreadStations}/> : null}
       </> : null}
     </>}
   </div>;

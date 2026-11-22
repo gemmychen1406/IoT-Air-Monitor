@@ -5,6 +5,8 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { FORECAST_CONFIG as CFG } from './config.js';
 import { walkForward, validationTrace } from './validation.js';
 import { compareAdvancedCurves } from './curveValidation.js';
+import { evaluateHoldoutForecasts } from './holdoutValidation.js';
+import { MODEL_LABELS } from './modelSelection.js';
 import type { ForecastModel, Measure, MinuteReading } from './types.js';
 
 const meta = {
@@ -24,6 +26,7 @@ export function ForecastValidationPanel({ history, horizon, model }: {
   model: Record<Measure, ForecastModel>;
 }) {
   const [metric, setMetric] = useState<Measure>('temperature');
+  const holdout = useMemo(() => evaluateHoldoutForecasts(history), [history]);
   const all = useMemo(() => ({
     temperature: walkForward(history, 'temperature', horizon, undefined, { multiStep: true }),
     humidity: walkForward(history, 'humidity', horizon, undefined, { multiStep: true }),
@@ -70,6 +73,18 @@ export function ForecastValidationPanel({ history, horizon, model }: {
         </tr>)}</tbody></table></div>
       <p className="ft-muted">Dòng Random Forest/Holt-Winters được đối chiếu từng mô hình với mô hình cơ sở tốt nhất trên đúng các mốc nó dự báo được; số cặp có thể khác. Không dùng bảng này để so sánh MAE giữa hai tập đối chiếu khác nhau.</p>
       {best.length ? <p className="ft-muted">Sai số thấp nhất trong ba mô hình cơ sở (khi đủ dữ liệu): {best.map((item) => `${meta[item.metric].name}: ${modelLabel[item.model]}`).join(' · ')}. Không có thuật toán nào luôn tốt nhất trên mọi dữ liệu.</p> : <p className="ft-muted">Chưa có đủ cặp dự báo–đo thực tế để kết luận mô hình nào chính xác hơn.</p>}
+    </section>
+    <section className="panel ft-validation-table">
+      <div className="ft-section-bar"><h2>Kiểm thử trên 30 phút dữ liệu giữ lại</h2></div>
+      <p className="ft-muted">Mô hình tự động được chọn và huấn luyện chỉ bằng lịch sử trước mốc chia tập. Không dùng 30 phút cuối để chọn mô hình. So sánh đúng mốc +15 và +30 phút với Naive, không nội suy số đo còn thiếu.</p>
+      <div className="ft-table-scroll"><table><thead><tr><th>Chỉ số</th><th>Mốc</th><th>Mô hình chọn trước kiểm thử</th><th>Sai số (MAE)</th><th>Naive</th></tr></thead><tbody>
+        {holdout.map((row) => <tr key={`${row.metric}:${row.horizon}`}>
+          <th>{meta[row.metric].name}</th><td>+{row.horizon} phút</td><td>{row.model ? MODEL_LABELS[row.model] : '—'}</td>
+          <td>{row.mae === null ? 'Chưa có' : `${row.mae.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${meta[row.metric].unit}`}</td>
+          <td>{row.naiveMae === null ? 'Chưa có' : `${row.naiveMae.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${meta[row.metric].unit}`}</td>
+        </tr>)}</tbody></table></div>
+      {holdout.some((row) => row.reason) ? <p className="ft-muted">{[...new Set(holdout.flatMap((row) => row.reason ? [`${meta[row.metric].name} +${row.horizon}: ${row.reason}`] : []))].join(' ')}</p> : null}
+      <p className="ft-muted"><strong>Lưu ý:</strong> Mỗi mốc chỉ có tối đa 1 cặp đo–dự báo độc lập với phần huấn luyện. MAE ở đây là sai số tuyệt đối của cặp đó, chưa đủ để khẳng định độ chính xác thực nghiệm trên dữ liệu mới. Các mốc hồi cứu trong bảng phía trên có thể chồng lấn và không phải kiểm thử độc lập.</p>
     </section>
     <section className="panel ft-chart-panel ft-wide-panel">
       <div className="ft-section-bar"><div><h2>Biểu đồ đối chiếu dự báo và số đo</h2><p className="ft-muted">Màu xanh: thực tế · màu tím: dự báo từ thời điểm trước đó</p></div>
